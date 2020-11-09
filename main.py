@@ -33,13 +33,12 @@ import matplotlib.pyplot as plt
 import tensorflow_addons as tfa
 from PIL import Image, ImageOps, ImageFont, ImageDraw
 
-import robust_loss_pytorch.general
-
 import doc
-import data
+import preprocess_data
 import models
 import plot
 import tools
+import pair_data
 
 # preferably use the non-display gpu for training
 os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
@@ -505,9 +504,9 @@ def run_test(network_model,
         # model, optimizer and loss
         lmsi_model = None
         if network_model == 'memory-piv-net':
-            lmsi_model = lmsi_model_pt.Memory_PIVnet(**kwargs)
+            lmsi_model = models.Memory_PIVnet(**kwargs)
         elif network_model == 'memory-piv-net-no-neighbor':
-            lmsi_model = lmsi_model_pt.Memory_PIVnet_No_Neighbor(**kwargs)
+            lmsi_model = models.Memory_PIVnet_No_Neighbor(**kwargs)
 
         lmsi_model.eval()
         lmsi_model.to(device)
@@ -744,10 +743,10 @@ def run_test(network_model,
                 if draw_normal:
                     cur_t_test_image = cur_t_stitched_image[:, :, 0].astype(np.uint8).reshape((final_size, final_size))
                     # visualize the true velocity field
-                    cur_t_flow_true, max_vel = lmsi_plot.visualize_flow(cur_t_stitched_label_true)
+                    cur_t_flow_true, max_vel = plot.visualize_flow(cur_t_stitched_label_true)
                     print(f'Label max vel magnitude is {max_vel}')
                     # visualize the pred velocity field with truth's saturation range
-                    cur_t_flow_pred, _ = lmsi_plot.visualize_flow(cur_t_stitched_label_pred, max_vel=max_vel)
+                    cur_t_flow_pred, _ = plot.visualize_flow(cur_t_stitched_label_pred, max_vel=max_vel)
                     # visualize the error magnitude
                     plt.figure()
                     plt.imshow(pred_error, cmap='RdBu', interpolation='nearest', vmin=-1.0, vmax=1.0)
@@ -759,7 +758,7 @@ def run_test(network_model,
                     print(f'error magnitude plot has been saved to {error_path}')
 
                     if blend:
-                        cur_t_flow_pred_blend, _ = lmsi_plot.visualize_flow(cur_t_stitched_label_pred_blend, max_vel=max_vel)
+                        cur_t_flow_pred_blend, _ = plot.visualize_flow(cur_t_stitched_label_pred_blend, max_vel=max_vel)
                         # error magnitude plot
                         plt.figure()
                         plt.imshow(pred_blend_error, cmap='RdBu', interpolation='nearest', vmin=-1.0, vmax=1.0)
@@ -834,397 +833,6 @@ def run_test(network_model,
                     cur_t_test_image.save(test_image_path)
                     print(f'Test image has been saved to {test_image_path}')
 
-                    # # combine three (four if blended) resulting images and save as one
-                    # # not using for paper purpose
-                    # # 3*3 image
-                    # if blend:
-                    #     all_images = [cur_t_flow_true, cur_t_flow_pred, cur_t_flow_pred_blend,
-                    #                   cur_t_flow_true, pred_error_plot, pred_blend_error_plot,
-                    #                   cur_t_flow_true, boundary_error_plot, boundary_blend_error_plot]
-                    #     # all_images = [cur_t_flow_true, cur_t_flow_pred, cur_t_flow_pred_blend]
-                    #     # widths, heights = zip(*(i.size for i in all_images))
-                    #     total_width = 3*final_size
-                    #     total_height = final_size
-                    #     # total_width = sum(widths)
-                    #     # max_height = max(heights)
-                    #     boarder_size = 50
-                    #     hori_image_gap = 15
-                    #     verti_image_gap = 50
-                    #     total_width += 2*boarder_size + 2*hori_image_gap
-                    #     total_height += 2*boarder_size
-                    # else:
-                    #     all_images = [cur_t_flow_true, cur_t_flow_pred, pred_error_plot]
-                    #     widths, heights = zip(*(i.size for i in all_images))
-                    #     total_width = sum(widths)
-                    #     max_height = max(heights)
-                    #     boarder_size = 50
-                    #     image_gap = 15
-                    #     total_width += 2*boarder_size + (len(all_images)-1)*image_gap
-                    #     total_height = max_height + 2*boarder_size
-
-
-                    # combined_image = Image.new('RGB', (total_width, total_height), (255, 255, 255))
-                    # x_offset = boarder_size
-                    # y_offset = boarder_size
-
-                    # for n, im in enumerate(all_images):
-                    #     i = n // 3
-                    #     j = n % 3
-                    #     combined_image.paste(im, (x_offset+j*final_size+j*hori_image_gap, y_offset+i*final_size+i*verti_image_gap))
-                    #         # x_offset += (im.size[0] + image_gap)
-
-                    # # add text to note the MSE
-                    # font = ImageFont.truetype('Font/open-sans/OpenSans-Regular.ttf', 20)
-                    # if blend:
-                    #     # title
-                    #     title_loc = (boarder_size+final_size//2, boarder_size//5)
-                    #     # first row of images
-                    #     truth_loc_0 = (boarder_size+final_size//4, boarder_size+final_size)
-                    #     pred_loc = (boarder_size+final_size+hori_image_gap+final_size//4-15, boarder_size+final_size)
-                    #     blend_loc = (boarder_size+2*final_size+2*hori_image_gap+final_size//4-15, boarder_size+final_size)
-                    #     # second row of images
-                    #     truth_loc_1 = (boarder_size+final_size//4, boarder_size+2*final_size+verti_image_gap)
-                    #     error_loc = (boarder_size+final_size+hori_image_gap+final_size//4-18, boarder_size+2*final_size+verti_image_gap)
-                    #     blend_error_loc = (boarder_size+2*final_size+2*hori_image_gap+15, boarder_size+2*final_size+verti_image_gap)
-                    #     # third row of images
-                    #     truth_loc_2 = (boarder_size+final_size//4, boarder_size+3*final_size+2*verti_image_gap)
-                    #     mask_error_loc = (boarder_size+final_size+hori_image_gap+final_size//4-15, boarder_size+3*final_size+2*verti_image_gap)
-                    #     mask_blend_error_loc = (boarder_size+2*final_size+2*hori_image_gap+8, boarder_size+3*final_size+2*verti_image_gap)
-
-
-                    #     ImageDraw.Draw(combined_image).text(title_loc,
-                    #                                         'Velocity field, t = %d, unblend %s = %.4f, blended %s = %.4f' % (t-time_span//2, loss, loss_unblend, loss, loss_blend),
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-                    #     # first row
-                    #     ImageDraw.Draw(combined_image).text(truth_loc_0,
-                    #                                         'Ground truth',
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-                    #     ImageDraw.Draw(combined_image).text(pred_loc,
-                    #                                         'Model prediction',
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-                    #     ImageDraw.Draw(combined_image).text(blend_loc,
-                    #                                         'Blended prediction',
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-
-                    #     # second row
-                    #     ImageDraw.Draw(combined_image).text(truth_loc_1,
-                    #                                         'Ground truth',
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-                    #     ImageDraw.Draw(combined_image).text(error_loc,
-                    #                                         'Error magnitude',
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-                    #     ImageDraw.Draw(combined_image).text(blend_error_loc,
-                    #                                         'Blended error magnitude',
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-
-                    #     # third row
-                    #     ImageDraw.Draw(combined_image).text(truth_loc_2,
-                    #                                         'Ground truth',
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-                    #     ImageDraw.Draw(combined_image).text(mask_error_loc,
-                    #                                         'Masked magnitude',
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-                    #     ImageDraw.Draw(combined_image).text(mask_blend_error_loc,
-                    #                                         'Masked blended err. mag.',
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-                    # else:
-                    #     title_loc = (boarder_size+widths[0]-20, boarder_size//3)
-                    #     truth_loc = (boarder_size+widths[0]//4, boarder_size+max_height)
-                    #     pred_loc = (boarder_size+widths[0]+image_gap+widths[1]//4-15, boarder_size+max_height)
-                    #     # diff_loc = (total_width-boarder_size-widths[2]*3//4+20, boarder_size+max_height)
-
-
-                    #     ImageDraw.Draw(combined_image).text(title_loc,
-                    #                                         'Velocity field, t = %d\nunblend MSE = %.4f' % (t-time_span//2, loss_unblend),
-                    #                                         (0, 0, 0),
-                    #                                         font=font)
-
-                    # if blend:
-                    #     combined_image_path = os.path.join(figs_dir, f'blend_result_{t-time_span//2}.pdf')
-                    # else:
-                    #     combined_image_path = os.path.join(figs_dir, f'unblend_result_{t-time_span//2}.png')
-
-                    # combined_image.save(combined_image_path)
-                    # print(f'Combined resulting image has been saved to {combined_image_path}')
-
-                # generate glyphs for velocity field
-                if draw_glyph:
-                    # the glyph has size final_size/ratio
-                    ratio = 4
-
-                    # Create a background color.
-                    colors = vtk.vtkNamedColors()
-                    colors.SetColor('BkgColor', [26, 51, 102, 255])
-
-                    # set up vtk renderer and rendering window
-                    renderer = vtk.vtkRenderer()
-                    renderWindow = vtk.vtkRenderWindow()
-                    renderWindow.SetSize(5120, 5120)
-                    renderWindow.AddRenderer(renderer)
-
-                    # create a renderwindow interactor
-                    renderWindowInteractor = vtk.vtkRenderWindowInteractor()
-                    renderWindowInteractor.SetRenderWindow(renderWindow)
-
-                    # get grid
-                    all_x = np.arange(0, final_size//ratio, 1)
-                    all_y = np.arange(0, final_size//ratio, 1)
-                    num_datapts = len(all_x) * len(all_y)
-                    points = vtk.vtkPoints()
-
-                    # construct velocities
-                    vel_pred = vtk.vtkFloatArray()
-                    vel_pred.SetNumberOfComponents(3)
-                    vel_pred.SetNumberOfTuples(num_datapts)
-
-                    vel_true = vtk.vtkFloatArray()
-                    vel_true.SetNumberOfComponents(3)
-                    vel_true.SetNumberOfTuples(num_datapts)
-                    index = 0
-
-                    # x is the width
-                    for x in all_x:
-                        # y is the height
-                        for y in all_y:
-                            points.InsertPoint(index, x, y, 0)
-                            # coordinate transform is embedded
-                            # VTK coordinate origins at the bottom left corner, with x going right, y going up
-                            # array coordinate origins at the top left corner, with x going down, y going right
-                            # for example, vtk (1, 2) maps to velocity array at (253, 1) with ratio = 1
-                            vel_x_pred = cur_t_stitched_label_pred[final_size-1-y*ratio, x*ratio, 0]
-                            vel_y_pred = cur_t_stitched_label_pred[final_size-1-y*ratio, x*ratio, 1]
-                            vel_pred.SetTuple3(index, vel_x_pred, vel_y_pred, 0)
-
-                            vel_x_true = cur_t_stitched_label_true[final_size-1-y*ratio, x*ratio, 0]
-                            vel_y_true = cur_t_stitched_label_true[final_size-1-y*ratio, x*ratio, 1]
-                            vel_true.SetTuple3(index, vel_x_true, vel_y_true, 0)
-                            index += 1
-
-                    # combine velocity into grids
-                    # velocity_grid_pred = vtk.vtkStructuredGrid()
-                    velocity_grid_pred = vtk.vtkPolyData()
-                    velocity_grid_pred.SetPoints(points)
-                    velocity_grid_pred.GetPointData().SetVectors(vel_pred)
-
-                    # velocity_grid_true = vtk.vtkStructuredGrid()
-                    velocity_grid_true = vtk.vtkPolyData()
-                    velocity_grid_true.SetPoints(points)
-                    velocity_grid_true.GetPointData().SetVectors(vel_true)
-
-                    # create source
-                    arrow_pred = vtk.vtkArrowSource()
-                    # arrow_pred = vtk.vtkGlyphSource2D()
-                    arrow_pred.SetTipLength(0.3)
-                    arrow_pred.SetTipRadius(0.2)
-                    arrow_pred.SetTipResolution(16)
-                    arrow_pred.SetShaftRadius(0.1)
-                    arrow_pred.SetShaftResolution(16)
-
-                    arrow_true = vtk.vtkArrowSource()
-                    # arrow_true = vtk.vtkGlyphSource2D()
-                    arrow_true.SetTipLength(0.3)
-                    arrow_true.SetTipRadius(0.2)
-                    arrow_true.SetTipResolution(16)
-                    arrow_true.SetShaftRadius(0.1)
-                    arrow_true.SetShaftResolution(16)
-
-                    # create glyph flter from arrows and velocity grids
-                    glyph_pred = vtk.vtkGlyph2D()
-                    glyph_pred.SetInputData(velocity_grid_pred)
-                    glyph_pred.SetSourceConnection(arrow_pred.GetOutputPort())
-                    glyph_pred.SetVectorModeToUseVector()
-                    glyph_pred.SetColorModeToColorByVector()
-                    glyph_pred.OrientOn()
-                    glyph_pred.Update()
-
-                    glyph_true = vtk.vtkGlyph2D()
-                    glyph_true.SetInputData(velocity_grid_true)
-                    glyph_true.SetSourceConnection(arrow_true.GetOutputPort())
-                    glyph_true.SetVectorModeToUseVector()
-                    glyph_true.SetColorModeToColorByVector()
-                    glyph_true.OrientOn()
-                    glyph_true.Update()
-
-                    # mapper
-                    # Use a color transfer Function to generate the colors in the lookup table
-                    def MakeLUTFromCTF(num_colors):
-                        """
-                        See: http://www.vtk.org/doc/nightly/html/classvtkColorTransferFunction.html
-                        :param: num_colors - number of color table colors
-                        :return: The lookup table.
-                        """
-                        ctf = vtk.vtkColorTransferFunction()
-                        ctf.SetColorSpaceToDiverging()
-                        # green to red.
-                        ctf.AddRGBPoint(0.0, 0.0, 1.0, 0.0)
-                        ctf.AddRGBPoint(0.5, 0.5, 0.5, 0.0)
-                        ctf.AddRGBPoint(1.0, 1.0, 0.0, 0.0)
-
-                        lut = vtk.vtkLookupTable()
-                        lut.SetNumberOfTableValues(num_colors)
-                        lut.Build()
-
-                        for i in range(0, num_colors):
-                            # need to add the final A to the RGB obtained by GetColor
-                            rgb = list(ctf.GetColor(float(i) / num_colors)) + [1]
-                            lut.SetTableValue(i, rgb)
-
-                        return lut
-
-                    # color look up table that maps scalar values into RGBA color
-                    num_colors = int((max(velocity_grid_pred.GetPointData().GetVectors().GetRange()[1],
-                                    velocity_grid_true.GetPointData().GetVectors().GetRange()[1]) -
-                                    min(velocity_grid_pred.GetPointData().GetVectors().GetRange()[0],
-                                        velocity_grid_true.GetPointData().GetVectors().GetRange()[0])) / 0.01)
-                    lut = MakeLUTFromCTF(num_colors)
-                    mapper_pred = vtk.vtkPolyDataMapper()
-                    # mapper_pred = vtk.vtkImageMapper()
-                    mapper_pred.SetInputConnection(glyph_pred.GetOutputPort())
-                    mapper_pred.SetLookupTable(lut)
-                    mapper_pred.ScalarVisibilityOn()
-                    mapper_pred.SetScalarModeToUsePointData()
-                    mapper_pred.SetScalarRange(min(velocity_grid_pred.GetPointData().GetVectors().GetRange()[0],
-                                                    velocity_grid_true.GetPointData().GetVectors().GetRange()[0]),
-                                                max(velocity_grid_pred.GetPointData().GetVectors().GetRange()[1],
-                                                    velocity_grid_true.GetPointData().GetVectors().GetRange()[1]))
-
-                    mapper_true = vtk.vtkPolyDataMapper()
-                    # mapper_true = vtk.vtkImageMapper()
-                    mapper_true.SetInputConnection(glyph_true.GetOutputPort())
-                    mapper_true.SetLookupTable(lut)
-                    mapper_true.ScalarVisibilityOn()
-                    mapper_true.SetScalarModeToUsePointData()
-                    mapper_true.SetScalarRange(min(velocity_grid_pred.GetPointData().GetVectors().GetRange()[0],
-                                                    velocity_grid_true.GetPointData().GetVectors().GetRange()[0]),
-                                                max(velocity_grid_pred.GetPointData().GetVectors().GetRange()[1],
-                                                    velocity_grid_true.GetPointData().GetVectors().GetRange()[1]))
-
-                    # actor
-                    actor_pred = vtk.vtkActor()
-                    actor_pred.SetMapper(mapper_pred)
-
-                    actor_true = vtk.vtkActor()
-                    actor_true.SetMapper(mapper_true)
-
-                    # scalar bar actor
-                    scalar_bar = vtk.vtkScalarBarActor()
-                    scalar_bar.SetLookupTable(lut)
-                    scalar_bar.SetHeight(0.1)
-                    scalar_bar.SetWidth(0.9)
-                    # scalar_bar.SetTitle('Velocity')
-
-                    scalar_bar.SetNumberOfLabels(10)
-                    scalar_bar.SetOrientationToHorizontal()
-
-                    # create the scalar_bar_widget
-                    scalar_bar_widget = vtk.vtkScalarBarWidget()
-                    scalar_bar_widget.SetInteractor(renderWindowInteractor)
-                    scalar_bar_widget.SetScalarBarActor(scalar_bar)
-                    scalarBarRep = scalar_bar_widget.GetRepresentation()
-                    # scalarBarRep.GetPositionCoordinate().SetValue(0.05,0.05)
-                    # scalarBarRep.GetPosition2Coordinate().SetValue(0.15,0.25)
-                    scalar_bar_widget.On()
-
-                    # assign actor to the renderer
-                    renderer.AddActor(actor_pred)
-                    renderer.AddActor(actor_true)
-                    renderer.SetBackground(colors.GetColor3d("BkgColor"))
-                    # renderer.GetActiveCamera().ParallelProjectionOn()
-                    # renderer.GetActiveCamera().Zoom(5)
-                    renderWindow.SetAlphaBitPlanes(1)
-                    renderWindow.Render()
-
-                    # save the rendered image
-                    def WriteToImage(fileName, renWin, rgba=True):
-                        """
-                        Write the render window view to an image file.
-
-                        Image types supported are:
-                        BMP, JPEG, PNM, PNG, PostScript, TIFF.
-                        The default parameters are used for all writers, change as needed.
-
-                        :param fileName: The file name, if no extension then PNG is assumed.
-                        :param renWin: The render window.
-                        :param rgba: Used to set the buffer type.
-                        :return:
-                        """
-
-                        import os
-
-                        if fileName:
-                            # Select the writer to use.
-                            path, ext = os.path.splitext(fileName)
-                            ext = ext.lower()
-                            if not ext:
-                                ext = '.png'
-                                fileName = fileName + ext
-                            if ext == '.bmp':
-                                writer = vtk.vtkBMPWriter()
-                            elif ext == '.jpg':
-                                writer = vtk.vtkJPEGWriter()
-                            elif ext == '.pnm':
-                                writer = vtk.vtkPNMWriter()
-                            elif ext == '.ps':
-                                if rgba:
-                                    rgba = False
-                                writer = vtk.vtkPostScriptWriter()
-                            elif ext == '.tiff':
-                                writer = vtk.vtkTIFFWriter()
-                            else:
-                                writer = vtk.vtkPNGWriter()
-
-                            windowto_image_filter = vtk.vtkWindowToImageFilter()
-                            windowto_image_filter.SetInput(renWin)
-                            windowto_image_filter.SetScale(1)  # image quality
-                            if rgba:
-                                windowto_image_filter.SetInputBufferTypeToRGBA()
-                            else:
-                                windowto_image_filter.SetInputBufferTypeToRGB()
-                                # Read from the front buffer.
-                                windowto_image_filter.ReadFrontBufferOff()
-                                windowto_image_filter.Update()
-
-                            writer.SetFileName(fileName)
-                            writer.SetInputConnection(windowto_image_filter.GetOutputPort())
-                            writer.Write()
-                        else:
-                            raise RuntimeError('Need a filename.')
-
-                    def WriteToPDF(file_name, render_window):
-                        exporter = vtk.vtkGL2PSExporter()
-                        exporter.SetRenderWindow(renderWindow)
-                        exporter.SetFileFormatToPDF()
-                        # exporter.SetFileFormatToEPS()
-                        exporter.SetFilePrefix(file_name)
-                        exporter.DrawBackgroundOn()
-                        exporter.Write()
-                        exporter.Update()
-
-                    glyph_path = os.path.join(figs_dir, f'glyph_t{t-time_span//2}_{final_size//ratio}_pred')
-                    # WriteImage(glyph_path, renderWindow)
-                    WriteToPDF(glyph_path, renderWindow)
-
-                    # Write the stl file to disk
-                    # exporter = vtk.vtkVRMLExporter()
-                    # exporter.SetRenderWindow(renderWindow)
-                    # exporter.SetFileName(glyph_path)
-                    # exporter.Write()
-                    # exporter.Update()
-
-                    # interactive display
-                    renderWindowInteractor.Initialize()
-                    renderWindowInteractor.Start()
-
             if blend:
                 print(f'\nMin blended {loss} is {min_loss} at t={min_loss_index}')
                 avg_loss = sum_loss / (end_t - start_t + 1)
@@ -1234,13 +842,13 @@ def run_test(network_model,
 def main():
 
 	# input arguments
-    parser = argparse.ArgumentParser(description=lmsi_doc.description)
+    parser = argparse.ArgumentParser(description=doc.description)
     # mode (data, train, or test mode)
-    parser.add_argument('--mode', required=True, action='store', nargs=1, dest='mode', help=lmsi_doc.mode)
+    parser.add_argument('--mode', required=True, action='store', nargs=1, dest='mode', help=doc.mode)
     # network method (unet, 3dunet, etc)
     parser.add_argument('-n', '--network-model', action='store', nargs=1, dest='network_model')
     # input dataset ditectory for various non train/test related modes
-    parser.add_argument('-i', '--input-dir', action='store', nargs=1, dest='input_dir', help=lmsi_doc.data_dir)
+    parser.add_argument('-i', '--input-dir', action='store', nargs=1, dest='input_dir', help=doc.data_dir)
     # input training dataset director
     parser.add_argument('--train-dir', action='store', nargs=1, dest='train_dir')
     # input validation dataset ditectory
@@ -1262,9 +870,9 @@ def main():
     # checkpoint path for continuing training
     parser.add_argument('-c', action='store', nargs=1, dest='checkpoint_path')
     # input or output model directory
-    parser.add_argument('-m', '--model-dir', action='store', nargs=1, dest='model_dir', help=lmsi_doc.model_dir)
+    parser.add_argument('-m', '--model-dir', action='store', nargs=1, dest='model_dir', help=doc.model_dir)
     # output directory (tfrecord in 'data' mode, figure in 'training' mode)
-    parser.add_argument('-o', '--output-dir', action='store', nargs=1, dest='output_dir', help=lmsi_doc.figs_dir)
+    parser.add_argument('-o', '--output-dir', action='store', nargs=1, dest='output_dir', help=doc.figs_dir)
     # verbosity
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose', default=False)
     args = parser.parse_args()
@@ -1272,7 +880,7 @@ def main():
     # check the system and directory
     check_system()
     mode = args.mode[0]
-    verbose = args.verbos
+    verbose = args.verbose
 
     # create pytorch dataset for train-tbptt
     if mode == 'generate_pt_dataset':
@@ -1302,7 +910,8 @@ def main():
             print(f'\ninput data directory: {data_dir}')
             print(f'output pt dataset directory: {output_dir}')
             print(f'tile size: {tile_size}')
-            print(f'neighboring size: {neighbor_size}\n')
+            print(f'neighboring size: {neighbor_size}')
+            print(f'time span: {time_span}\n')
 
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -1319,13 +928,13 @@ def main():
         output_test = os.path.join(output_dir, 'test')
 
         # generate train dataset
-        lmsi_data.generate_pt_dataset('train', train_dir, output_train, tile_size, target_dim, neighbor_size)
+        preprocess_data.generate_pt_dataset('train', train_dir, output_train, tile_size, target_dim, time_span, neighbor_size)
 
         # generate val dataest
-        lmsi_data.generate_pt_dataset('val', val_dir, output_val, tile_size, target_dim, neighbor_size)
+        preprocess_data.generate_pt_dataset('val', val_dir, output_val, tile_size, target_dim, time_span, neighbor_size)
 
         # # generate test dataset
-        lmsi_data.generate_pt_dataset('test', test_dir, output_test, tile_size, target_dim, neighbor_size)
+        preprocess_data.generate_pt_dataset('test', test_dir, output_test, tile_size, target_dim, time_span, neighbor_size)
 
 
     # training with customized manager (newest)
@@ -1426,11 +1035,11 @@ def main():
             train_img1_name_list, train_img2_name_list, train_gt_name_list = lmsi_pair_data.read_all(train_dir)
             val_img1_name_list, val_img2_name_list, val_gt_name_list = lmsi_pair_data.read_all(val_dir)
             # construct dataset
-            train_data, train_labels = lmsi_pair_data.construct_dataset(train_img1_name_list,
+            train_data, train_labels = pair_data.construct_dataset(train_img1_name_list,
                                                                         train_img2_name_list,
                                                                         train_gt_name_list)
 
-            val_data, val_labels = lmsi_pair_data.construct_dataset(val_img1_name_list,
+            val_data, val_labels = pair_data.construct_dataset(val_img1_name_list,
                                                                     val_img2_name_list,
                                                                     val_gt_name_list)
 
@@ -1604,9 +1213,9 @@ def main():
         # model, optimizer and loss
         lmsi_model = None
         if network_model == 'memory-piv-net':
-            lmsi_model = lmsi_model_pt.Memory_PIVnet(**kwargs)
+            lmsi_model = models.Memory_PIVnet(**kwargs)
         elif network_model == 'memory-piv-net-no-neighbor':
-            lmsi_model = lmsi_model_pt.Memory_PIVnet_No_Neighbor(**kwargs)
+            lmsi_model = models.Memory_PIVnet_No_Neighbor(**kwargs)
 
         # load checkpoint info if existing
         starting_epoch = 0
@@ -1907,9 +1516,9 @@ def main():
             num_tiles_per_image = all_test_image_sequences.shape[1]
         elif data_type == 'image-pair':
             # Read data
-            img1_name_list, img2_name_list, gt_name_list = lmsi_pair_data.read_all(test_dir)
+            img1_name_list, img2_name_list, gt_name_list = pair_data.read_all(test_dir)
             # construct dataset
-            test_data, test_labels = lmsi_pair_data.construct_dataset(img1_name_list, img2_name_list, gt_name_list)
+            test_data, test_labels = pair_data.construct_dataset(img1_name_list, img2_name_list, gt_name_list)
             # parameters loaded from input data
             num_channels = test_data.shape[1] // 2
 
@@ -1990,7 +1599,7 @@ def main():
                 # model, optimizer and loss
                 lmsi_model = None
                 if network_model == 'memory-piv-net':
-                    lmsi_model = lmsi_model_pt.Memory_PIVnet(**kwargs)
+                    lmsi_model = models.Memory_PIVnet(**kwargs)
 
                 lmsi_model.eval()
                 lmsi_model.to(device)
@@ -2040,8 +1649,8 @@ def main():
 
                     # visualize the flow
                     if visualize:
-                        cur_flow_true, max_vel = lmsi_plot.visualize_flow(cur_label_true)
-                        cur_flow_pred, _ = lmsi_plot.visualize_flow(cur_label_pred, max_vel=max_vel)
+                        cur_flow_true, max_vel = plot.visualize_flow(cur_label_true)
+                        cur_flow_pred, _ = plot.visualize_flow(cur_label_pred, max_vel=max_vel)
 
                         # convert to Image
                         cur_test_image1 = Image.fromarray(test_data[k, :, :, 0].numpy())

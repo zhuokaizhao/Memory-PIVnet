@@ -91,6 +91,7 @@ def generate_pt_dataset(mode, data_dir, output_dir, tile_size, target_dim, time_
 
             # generate padded neighbor tiles if required
             if neighbor_size != None:
+                print("\nPadding mode\n")
                 all_image_tiles = generate_batch_neighbors(all_images, all_image_tiles, tile_size, neighbor_size)
                 all_image_tiles_reorder = np.zeros((num_tiles_per_image, num_images+2*num_repeat, neighbor_size[0], neighbor_size[1], 1))
                 all_label_tiles_reorder = np.zeros((num_tiles_per_image, num_images+2*num_repeat, tile_size[0], tile_size[1], target_dim))
