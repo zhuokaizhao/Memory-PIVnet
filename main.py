@@ -35,14 +35,11 @@ from PIL import Image, ImageOps, ImageFont, ImageDraw
 
 import robust_loss_pytorch.general
 
-import lmsi_doc
-import lmsi_data
-import lmsi_model_tf
-import lmsi_model_pt
-import lmsi_plot
-import lmsi_log
-import lmsi_tools
-import lmsi_pair_data
+import doc
+import data
+import models
+import plot
+import tools
 
 # preferably use the non-display gpu for training
 os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
@@ -509,6 +506,8 @@ def run_test(network_model,
         lmsi_model = None
         if network_model == 'memory-piv-net':
             lmsi_model = lmsi_model_pt.Memory_PIVnet(**kwargs)
+        elif network_model == 'memory-piv-net-no-neighbor':
+            lmsi_model = lmsi_model_pt.Memory_PIVnet_No_Neighbor(**kwargs)
 
         lmsi_model.eval()
         lmsi_model.to(device)
@@ -1286,14 +1285,18 @@ def main():
         output_dir = args.output_dir[0]
         # required format of tile size is 'nxn', where n is numberable string
         tile_size = (int(args.tile_size[0].split('x')[0]), int(args.tile_size[0].split('x')[1]))
-        # neighbor size is twice the tile size
-        neighbor_size = (2*int(args.tile_size[0].split('x')[0]), 2*int(args.tile_size[0].split('x')[1]))
         if args.time_span != None:
             time_span = int(args.time_span[0])
         else:
             time_span = None
 
         target_dim = 2
+        padding = False
+        # neighbor size
+        if padding == True:
+            neighbor_size = (2*int(args.tile_size[0].split('x')[0]), 2*int(args.tile_size[0].split('x')[1]))
+        else:
+            neighbor_size = None
 
         if verbose:
             print(f'\ninput data directory: {data_dir}')
@@ -1316,13 +1319,13 @@ def main():
         output_test = os.path.join(output_dir, 'test')
 
         # generate train dataset
-        lmsi_data.generate_pt_dataset('train', train_dir, output_train, tile_size, neighbor_size, target_dim)
+        lmsi_data.generate_pt_dataset('train', train_dir, output_train, tile_size, target_dim, neighbor_size)
 
         # generate val dataest
-        lmsi_data.generate_pt_dataset('val', val_dir, output_val, tile_size, neighbor_size, target_dim)
+        lmsi_data.generate_pt_dataset('val', val_dir, output_val, tile_size, target_dim, neighbor_size)
 
         # # generate test dataset
-        lmsi_data.generate_pt_dataset('test', test_dir, output_test, tile_size, neighbor_size, target_dim)
+        lmsi_data.generate_pt_dataset('test', test_dir, output_test, tile_size, target_dim, neighbor_size)
 
 
     # training with customized manager (newest)
@@ -1602,6 +1605,8 @@ def main():
         lmsi_model = None
         if network_model == 'memory-piv-net':
             lmsi_model = lmsi_model_pt.Memory_PIVnet(**kwargs)
+        elif network_model == 'memory-piv-net-no-neighbor':
+            lmsi_model = lmsi_model_pt.Memory_PIVnet_No_Neighbor(**kwargs)
 
         # load checkpoint info if existing
         starting_epoch = 0

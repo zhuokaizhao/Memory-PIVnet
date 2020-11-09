@@ -23,10 +23,10 @@ import matplotlib.pyplot as plt
 # data_dir: data folder directory that has all the images and labels
 # output_dir: folder directory that you want to save pt dataset to
 # tile_size: individual tile size when spliting the original images
-# neighbor_size: tile_size + padding (neighboring information)
 # target_dim: velocity label dimension (max 3)
 # time_span: controls the padding(repeating) at the start and end of the sequence (for flow estimation purpose)
-def generate_pt_dataset(mode, data_dir, output_dir, tile_size, neighbor_size, target_dim, time_span=9):
+# neighbor_size: tile_size + padding (neighboring information)
+def generate_pt_dataset(mode, data_dir, output_dir, tile_size, target_dim, time_span=9, neighbor_size=None):
     # data_dir may contain data initialized with different number of points/objects
     all_sequences = sorted(os.listdir(data_dir), key=lambda x : x.split('_')[1])
     print(f'\n{mode} dataset includes {all_sequences} sequences')
@@ -86,39 +86,43 @@ def generate_pt_dataset(mode, data_dir, output_dir, tile_size, neighbor_size, ta
 
             # break all images and velocity labels into tiles
             all_image_tiles, all_label_tiles = generate_batch_tiles(all_images, all_labels, tile_size)
+            num_tiles_per_image = (image_size[0]//tile_size[0]) * (image_size[1]//tile_size[1])
+            print(f'{num_tiles_per_image} tiles per image')
 
-            # generate padded neighbor tiles
-            all_neighbor_tiles = generate_batch_neighbors(all_images, all_image_tiles, tile_size, neighbor_size)
+            # generate padded neighbor tiles if required
+            if neighbor_size != None:
+                all_image_tiles = generate_batch_neighbors(all_images, all_image_tiles, tile_size, neighbor_size)
+                all_image_tiles_reorder = np.zeros((num_tiles_per_image, num_images+2*num_repeat, neighbor_size[0], neighbor_size[1], 1))
+                all_label_tiles_reorder = np.zeros((num_tiles_per_image, num_images+2*num_repeat, tile_size[0], tile_size[1], target_dim))
+            else:
+                all_image_tiles_reorder = np.zeros((num_tiles_per_image, num_images+2*num_repeat, tile_size[0], tile_size[1], 1))
+                all_label_tiles_reorder = np.zeros((num_tiles_per_image, num_images+2*num_repeat, tile_size[0], tile_size[1], target_dim))
 
             # re-order tiles and labels in sequence
             # supposed there are 10 images, each gets split into 16 tiles, there would be 16 tile sequences
             # in short, 10*256*256*1 becomes 16*10*64*64*1, where 4 means four tile-position-based sequence
-            num_tiles_per_image = (image_size[0]//tile_size[0]) * (image_size[1]//tile_size[1])
-            print(f'{num_tiles_per_image} tiles per image')
-            all_neighbor_tiles_reorder = np.zeros((num_tiles_per_image, num_images+2*num_repeat, neighbor_size[0], neighbor_size[1], 1))
-            all_label_tiles_reorder = np.zeros((num_tiles_per_image, num_images+2*num_repeat, tile_size[0], tile_size[1], target_dim))
             for i in range(num_tiles_per_image):
                 # fill the first num_repeat frames and last num_repeat frames with first and last image
                 # first
-                all_neighbor_tiles_reorder[i, 0:num_repeat] = np.repeat(all_neighbor_tiles[i:i+1], repeats=num_repeat, axis=0)
+                all_image_tiles_reorder[i, 0:num_repeat] = np.repeat(all_image_tiles[i:i+1], repeats=num_repeat, axis=0)
                 all_label_tiles_reorder[i, 0:num_repeat] = np.repeat(all_label_tiles[i:i+1], repeats=num_repeat, axis=0)
                 # end
                 # when i = 0 (first tile pos), num_tiles_per_image = 16
                 # -(num_tiles_per_image-i) = -16
                 if i != num_tiles_per_image-1:
-                    all_neighbor_tiles_reorder[i, -num_repeat:] = np.repeat(all_neighbor_tiles[-(num_tiles_per_image-i):-(num_tiles_per_image-i)+1], repeats=num_repeat, axis=0)
+                    all_image_tiles_reorder[i, -num_repeat:] = np.repeat(all_image_tiles[-(num_tiles_per_image-i):-(num_tiles_per_image-i)+1], repeats=num_repeat, axis=0)
                     all_label_tiles_reorder[i, -num_repeat:] = np.repeat(all_label_tiles[-(num_tiles_per_image-i):-(num_tiles_per_image-i)+1], repeats=num_repeat, axis=0)
                 else:
-                    all_neighbor_tiles_reorder[i, -num_repeat:] = np.repeat(all_neighbor_tiles[-(num_tiles_per_image-i):], repeats=num_repeat, axis=0)
+                    all_image_tiles_reorder[i, -num_repeat:] = np.repeat(all_image_tiles[-(num_tiles_per_image-i):], repeats=num_repeat, axis=0)
                     all_label_tiles_reorder[i, -num_repeat:] = np.repeat(all_label_tiles[-(num_tiles_per_image-i):], repeats=num_repeat, axis=0)
 
                 # normal frames
                 tile_index = np.linspace(i, (num_images-1)*num_tiles_per_image+i, num_images).astype(int)
-                all_neighbor_tiles_reorder[i, num_repeat:num_repeat+num_images] = all_neighbor_tiles[tile_index]
+                all_image_tiles_reorder[i, num_repeat:num_repeat+num_images] = all_image_tiles[tile_index]
                 all_label_tiles_reorder[i, num_repeat:num_repeat+num_images] = all_label_tiles[tile_index]
 
 
-            hf.create_dataset(f'image_sequences_{cur_sequence}_{cur_num_points}', data=all_neighbor_tiles_reorder)
+            hf.create_dataset(f'image_sequences_{cur_sequence}_{cur_num_points}', data=all_image_tiles_reorder)
             hf.create_dataset(f'label_sequences_{cur_sequence}_{cur_num_points}', data=all_label_tiles_reorder)
 
     # close the file
