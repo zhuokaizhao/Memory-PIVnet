@@ -41,8 +41,8 @@ import tools
 import pair_data
 
 # preferably use the non-display gpu for training
-os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
-# os.environ['CUDA_VISIBLE_DEVICES']='0'
+# os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 # preferably use the display gpu for testing
 # os.environ['CUDA_VISIBLE_DEVICES']='2'
 
@@ -507,6 +507,8 @@ def run_test(network_model,
             lmsi_model = models.Memory_PIVnet(**kwargs)
         elif network_model == 'memory-piv-net-no-neighbor':
             lmsi_model = models.Memory_PIVnet_No_Neighbor(**kwargs)
+            # no blend is available for non-padding data
+            blend = False
 
         lmsi_model.eval()
         lmsi_model.to(device)
@@ -548,9 +550,9 @@ def run_test(network_model,
             # for minimal gpu ram purpose, take one time stamp at a time
             num_time_frames = len(cur_image_sequence)
             # we have (end_t-start_t+1) time frames in total
-            min_loss = 1000000
-            min_loss_index = 0
-            sum_loss = 0
+            all_losses = []
+            all_losses_blend = []
+
             for t in range(time_span//2+start_t, time_span//2+end_t+1):
                 print(f'\nInferencing t={t-time_span//2}')
                 # cur_t_image_block has shape (16, time_span, 128, 128)
@@ -596,57 +598,32 @@ def run_test(network_model,
                     h = i // num_tile_column
                     w = i % num_tile_column
 
-                    # take the center part
-                    cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
-                                         w*label_tile_width:(w+1)*label_tile_width,
-                                         :] \
-                        = cur_t_tile_block.permute(0, 2, 3, 1)[0,
-                                                               image_tile_height//4:image_tile_height//4*3,
-                                                               image_tile_width//4:image_tile_width//4*3,
-                                                               time_span//2:time_span//2+1].cpu().numpy()
+                    # take the center part if padded data
+                    if network_model == 'memory-piv-net':
+                        cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
+                                            w*label_tile_width:(w+1)*label_tile_width,
+                                            :] \
+                            = cur_t_tile_block.permute(0, 2, 3, 1)[0,
+                                                                image_tile_height//4:image_tile_height//4*3,
+                                                                image_tile_width//4:image_tile_width//4*3,
+                                                                time_span//2:time_span//2+1].cpu().numpy()
 
-                    cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
-                                              w*label_tile_width:(w+1)*label_tile_width,
-                                              :] \
-                        = cur_t_tile_label_true
+                        cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
+                                                w*label_tile_width:(w+1)*label_tile_width,
+                                                :] \
+                            = cur_t_tile_label_true
 
-                    cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
-                                              w*label_tile_width:(w+1)*label_tile_width,
-                                              :] \
-                        = cur_t_tile_label_pred
+                        cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
+                                                w*label_tile_width:(w+1)*label_tile_width,
+                                                :] \
+                            = cur_t_tile_label_pred
 
-                    # if blending is needed
-                    if blend:
-                        cur_t_tile_label_pred_blend = copy.deepcopy(cur_t_tile_label_pred)
-                        # blend all four parts
-                        # blend top left
-                        cur_t_tile_label_pred_blend_00 = blend_top_left(i,
-                                                                        device,
-                                                                        lmsi_model,
-                                                                        cur_t_image_block,
-                                                                        cur_t_tile_label_pred,
-                                                                        image_tile_height,
-                                                                        image_tile_width,
-                                                                        label_tile_height,
-                                                                        label_tile_width,
-                                                                        num_tile_column,
-                                                                        target_dim)
-
-                        # blend top right
-                        cur_t_tile_label_pred_blend_01 = blend_top_right(i,
-                                                                        device,
-                                                                        lmsi_model,
-                                                                        cur_t_image_block,
-                                                                        cur_t_tile_label_pred,
-                                                                        image_tile_height,
-                                                                        image_tile_width,
-                                                                        label_tile_height,
-                                                                        label_tile_width,
-                                                                        num_tile_column,
-                                                                        target_dim)
-
-                        # blend bottom left
-                        cur_t_tile_label_pred_blend_10 = blend_bottom_left(i,
+                        # if blending is needed
+                        if blend:
+                            cur_t_tile_label_pred_blend = copy.deepcopy(cur_t_tile_label_pred)
+                            # blend all four parts
+                            # blend top left
+                            cur_t_tile_label_pred_blend_00 = blend_top_left(i,
                                                                             device,
                                                                             lmsi_model,
                                                                             cur_t_image_block,
@@ -658,8 +635,8 @@ def run_test(network_model,
                                                                             num_tile_column,
                                                                             target_dim)
 
-                        # blend bottom right
-                        cur_t_tile_label_pred_blend_11 = blend_bottom_right(i,
+                            # blend top right
+                            cur_t_tile_label_pred_blend_01 = blend_top_right(i,
                                                                             device,
                                                                             lmsi_model,
                                                                             cur_t_image_block,
@@ -671,17 +648,58 @@ def run_test(network_model,
                                                                             num_tile_column,
                                                                             target_dim)
 
-                        # replace with the blended result
-                        cur_t_tile_label_pred_blend[:label_tile_height//2, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_00
-                        cur_t_tile_label_pred_blend[:label_tile_height//2, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_01
-                        cur_t_tile_label_pred_blend[label_tile_height//2:, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_10
-                        cur_t_tile_label_pred_blend[label_tile_height//2:, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_11
+                            # blend bottom left
+                            cur_t_tile_label_pred_blend_10 = blend_bottom_left(i,
+                                                                                device,
+                                                                                lmsi_model,
+                                                                                cur_t_image_block,
+                                                                                cur_t_tile_label_pred,
+                                                                                image_tile_height,
+                                                                                image_tile_width,
+                                                                                label_tile_height,
+                                                                                label_tile_width,
+                                                                                num_tile_column,
+                                                                                target_dim)
 
-                        # stitch the blended tiles
-                        cur_t_stitched_label_pred_blend[h*label_tile_height:(h+1)*label_tile_height,
-                                                        w*label_tile_width:(w+1)*label_tile_width,
-                                                        :] \
-                            = cur_t_tile_label_pred_blend
+                            # blend bottom right
+                            cur_t_tile_label_pred_blend_11 = blend_bottom_right(i,
+                                                                                device,
+                                                                                lmsi_model,
+                                                                                cur_t_image_block,
+                                                                                cur_t_tile_label_pred,
+                                                                                image_tile_height,
+                                                                                image_tile_width,
+                                                                                label_tile_height,
+                                                                                label_tile_width,
+                                                                                num_tile_column,
+                                                                                target_dim)
+
+                            # replace with the blended result
+                            cur_t_tile_label_pred_blend[:label_tile_height//2, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_00
+                            cur_t_tile_label_pred_blend[:label_tile_height//2, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_01
+                            cur_t_tile_label_pred_blend[label_tile_height//2:, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_10
+                            cur_t_tile_label_pred_blend[label_tile_height//2:, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_11
+
+                            # stitch the blended tiles
+                            cur_t_stitched_label_pred_blend[h*label_tile_height:(h+1)*label_tile_height,
+                                                            w*label_tile_width:(w+1)*label_tile_width,
+                                                            :] \
+                                = cur_t_tile_label_pred_blend
+                    elif network_model == 'memory-piv-net-no-neighbor':
+                        cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
+                                            w*label_tile_width:(w+1)*label_tile_width,
+                                            :] \
+                            = cur_t_tile_block.permute(0, 2, 3, 1)[0,:, :, time_span//2:time_span//2+1].cpu().numpy()
+
+                        cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
+                                                w*label_tile_width:(w+1)*label_tile_width,
+                                                :] \
+                            = cur_t_tile_label_true
+
+                        cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
+                                                w*label_tile_width:(w+1)*label_tile_width,
+                                                :] \
+                            = cur_t_tile_label_pred
 
                 # scale the result from [0, 256] to [0, 1]
                 cur_t_stitched_label_pred = cur_t_stitched_label_pred / 256.0
@@ -703,14 +721,12 @@ def run_test(network_model,
                             cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
                             sum_endpoint_error += cur_endpoint_error
 
+                all_losses.append(loss_unblend)
                 print(f'\nInference {loss} of unblended image t={t-time_span//2} is {loss_unblend}')
 
                 # absolute error for plotting magnitude
-                # pred_error = np.sqrt((cur_t_stitched_label_pred[:,:,0] - cur_t_stitched_label_true[:,:,0])**2 \
-                #                 + (cur_t_stitched_label_pred[:,:,1] - cur_t_stitched_label_true[:,:,1])**2)
                 pred_error = np.sqrt(cur_t_stitched_label_pred[:,:,0]**2 + cur_t_stitched_label_pred[:,:,1]**2) \
                                     - np.sqrt(cur_t_stitched_label_true[:,:,0]**2 + cur_t_stitched_label_true[:,:,1]**2)
-                # pred_error = np.linalg.norm(cur_t_stitched_label_pred-cur_t_stitched_label_true)
 
                 if blend:
                     if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
@@ -726,19 +742,12 @@ def run_test(network_model,
                                 cur_endpoint_error_blend = np.linalg.norm(cur_pred_blend-cur_true)
                                 sum_endpoint_error_blend += cur_endpoint_error_blend
 
-                    # sum the losses
-                    sum_loss += loss_blend
-
-                    if loss_blend < min_loss:
-                        min_loss = loss_blend
-                        min_loss_index = t-time_span//2
-
+                    all_losses_blend.append(loss_blend)
                     print(f'\nInference {loss} of blended image t={t-time_span//2} is {loss_blend}')
                     # error for plotting magnitude
-                    # pred_blend_error = np.sqrt((cur_t_stitched_label_pred_blend[:,:,0] - cur_t_stitched_label_true[:,:,0])**2 \
-                    #                             + (cur_t_stitched_label_pred_blend[:,:,1] - cur_t_stitched_label_true[:,:,1])**2)
                     pred_blend_error = np.sqrt(cur_t_stitched_label_pred_blend[:,:,0]**2 + cur_t_stitched_label_pred_blend[:,:,1]**2) \
                                         - np.sqrt(cur_t_stitched_label_true[:,:,0]**2 + cur_t_stitched_label_true[:,:,1]**2)
+
                 # save the input image, ground truth, prediction, and difference
                 if draw_normal:
                     cur_t_test_image = cur_t_stitched_image[:, :, 0].astype(np.uint8).reshape((final_size, final_size))
@@ -833,10 +842,19 @@ def run_test(network_model,
                     cur_t_test_image.save(test_image_path)
                     print(f'Test image has been saved to {test_image_path}')
 
+
+            min_loss = np.min(all_losses)
+            min_loss_index = np.where(all_losses == min_loss)
+            avg_loss = np.mean(all_losses)
+            print(f'Average unblended {loss} is {avg_loss}')
+            print(f'Min unblended {loss} is {min_loss} at t={min_loss_index}\n')
             if blend:
-                print(f'\nMin blended {loss} is {min_loss} at t={min_loss_index}')
-                avg_loss = sum_loss / (end_t - start_t + 1)
-                print(f'Average {loss} is {avg_loss}')
+                min_loss_blend = np.min(all_losses_blend)
+                min_loss_index_blend = np.where(all_losses_blend == min_loss_blend)
+                avg_loss_blend = np.mean(all_losses_blend)
+                print(f'Average blended {loss} is {avg_loss_blend}')
+                print(f'Min blended {loss} is {min_loss_blend} at t={min_loss_index_blend}')
+
 
 
 def main():
