@@ -702,10 +702,10 @@ def run_test(network_model,
                             = cur_t_tile_label_pred
 
                 # scale the result from [0, 256] to [0, 1]
-                cur_t_stitched_label_pred = cur_t_stitched_label_pred / 256.0
-                cur_t_stitched_label_true = cur_t_stitched_label_true / 256.0
+                cur_t_stitched_label_pred = cur_t_stitched_label_pred / final_size
+                cur_t_stitched_label_true = cur_t_stitched_label_true / final_size
                 if blend:
-                    cur_t_stitched_label_pred_blend = cur_t_stitched_label_pred_blend / 256.0
+                    cur_t_stitched_label_pred_blend = cur_t_stitched_label_pred_blend / final_size
 
                 # compute loss
                 if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
@@ -720,6 +720,8 @@ def run_test(network_model,
                             cur_true = cur_t_stitched_label_true[i, j]
                             cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
                             sum_endpoint_error += cur_endpoint_error
+
+                    loss_unblend = sum_endpoint_error / (final_size*final_size)
 
                 all_losses.append(loss_unblend)
                 print(f'\nInference {loss} of unblended image t={t-time_span//2} is {loss_unblend}')
@@ -741,6 +743,8 @@ def run_test(network_model,
                                 cur_true = cur_t_stitched_label_true[i, j]
                                 cur_endpoint_error_blend = np.linalg.norm(cur_pred_blend-cur_true)
                                 sum_endpoint_error_blend += cur_endpoint_error_blend
+
+                        loss_blend = sum_endpoint_error_blend / (final_size*final_size)
 
                     all_losses_blend.append(loss_blend)
                     print(f'\nInference {loss} of blended image t={t-time_span//2} is {loss_blend}')
@@ -800,7 +804,7 @@ def run_test(network_model,
                     Q._init()
                     assert isinstance(Q.scale, float)
                     plt.axis('off')
-                    true_quiver_path = os.path.join(figs_dir, f'true_quiver_{t-time_span//2}.svg')
+                    true_quiver_path = os.path.join(figs_dir, f'true_{t-time_span//2}.svg')
                     plt.savefig(true_quiver_path, bbox_inches='tight', dpi=1200)
                     print(f'ground truth quiver plot has been saved to {true_quiver_path}')
 
@@ -917,7 +921,7 @@ def main():
             time_span = None
 
         target_dim = 2
-        padding = False
+        padding = True
         # neighbor size
         if padding == True:
             neighbor_size = (2*int(args.tile_size[0].split('x')[0]), 2*int(args.tile_size[0].split('x')[1]))
@@ -1003,7 +1007,8 @@ def main():
 
         # load the data
         print(f'\nLoading {data_type} datasets')
-        if data_type == 'multi-frame':
+        # one-sided is the half side of multi-frame
+        if data_type == 'multi-frame' or data_type == 'one-sided':
             # load training dataset
             train_dataset = h5py.File(train_dir, 'r')
             # list the number of sequences in this dataset
@@ -1050,8 +1055,8 @@ def main():
             num_tiles_per_image = all_train_image_sequences.shape[1]
         elif data_type == 'image-pair':
             # Read data
-            train_img1_name_list, train_img2_name_list, train_gt_name_list = lmsi_pair_data.read_all(train_dir)
-            val_img1_name_list, val_img2_name_list, val_gt_name_list = lmsi_pair_data.read_all(val_dir)
+            train_img1_name_list, train_img2_name_list, train_gt_name_list = pair_data.read_all(train_dir)
+            val_img1_name_list, val_img2_name_list, val_gt_name_list = pair_data.read_all(val_dir)
             # construct dataset
             train_data, train_labels = pair_data.construct_dataset(train_img1_name_list,
                                                                         train_img2_name_list,
@@ -1078,7 +1083,7 @@ def main():
             print(f'loss function: {loss}')
             print(f'number of image channel: {num_channels}')
             print(f'time span: {time_span}')
-            if data_type == 'multi-frame':
+            if data_type == 'multi-frame' or data_type == 'one-sided':
                 print(f'tile size: ({tile_size[0]}, {tile_size[1]})')
                 print(f'num_tiles_per_image: {num_tiles_per_image}')
                 print(f'\n{num_train_sequences} sequences of training data is detected')
@@ -1121,52 +1126,101 @@ def main():
                 image_size = (image_sequence.shape[3], image_sequence.shape[4])
                 channel = image_sequence.shape[2]
 
-                for t in range(time_span//2, image_sequence.shape[1]-time_span//2):
-                    mini_batch_start_time = time.time()
+                # multi-frame is the standard version where [t-T//2, t+T//2] frames are input, estimate frame t
+                if self.data_type == 'multi-frame':
+                    for t in range(time_span//2, image_sequence.shape[1]-time_span//2):
+                        mini_batch_start_time = time.time()
 
-                    # construct an image block with time_span
-                    cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
-                    cur_block_indices = list(range(t-time_span//2, t+time_span//2+1))
+                        # construct an image block with time_span
+                        cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
+                        cur_block_indices = list(range(t-time_span//2, t+time_span//2+1))
 
-                    # construct image block and send to GPU (we know that channel is 1)
-                    cur_image_block = image_sequence[:, cur_block_indices, 0].to(device)
-                    # construct label tile and send to GPU
-                    cur_label_true = label_sequence[:, t].to(device)
+                        # construct image block and send to GPU (we know that channel is 1)
+                        cur_image_block = image_sequence[:, cur_block_indices, 0].to(device)
+                        # construct label tile and send to GPU
+                        cur_label_true = label_sequence[:, t].to(device)
 
-                    # train/validate
-                    cur_label_pred = self.model(cur_image_block)
+                        # train/validate
+                        cur_label_pred = self.model(cur_image_block)
 
-                    # print("Outside: input size", cur_image_block.size(),
-                    #         "output_size", cur_label_pred.size())
+                        # print("Outside: input size", cur_image_block.size(),
+                        #         "output_size", cur_label_pred.size())
 
-                    # compute loss
-                    loss = self.loss_module(cur_label_pred, cur_label_true)
-                    if self.lmsi_loss == 'RMSE':
-                        loss = torch.sqrt(loss)
+                        # compute loss
+                        loss = self.loss_module(cur_label_pred, cur_label_true)
+                        if self.lmsi_loss == 'RMSE':
+                            loss = torch.sqrt(loss)
 
-                    # Before the backward pass, use the optimizer object to zero all of the
-                    # gradients for the variables it will update
-                    self.optimizer.zero_grad()
+                        # Before the backward pass, use the optimizer object to zero all of the
+                        # gradients for the variables it will update
+                        self.optimizer.zero_grad()
 
-                    # Backward pass: compute gradient of the loss with respect to model parameters
-                    loss.backward()
+                        # Backward pass: compute gradient of the loss with respect to model parameters
+                        loss.backward()
 
-                    # update to the model parameters
-                    self.optimizer.step()
+                        # update to the model parameters
+                        self.optimizer.step()
 
-                    # save the loss
-                    all_losses.append(loss.detach().item())
+                        # save the loss
+                        all_losses.append(loss.detach().item())
 
-                    mini_batch_end_time = time.time()
-                    mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
+                        mini_batch_end_time = time.time()
+                        mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
-                    # show mini-batch progress
-                    print_progress_bar(iteration=t-time_span//2+1,
-                                        total=image_sequence.shape[1]-time_span+1,
-                                        prefix=f'Mini-batch {t-time_span//2+1}/{image_sequence.shape[1]-time_span+1},',
-                                        suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
-                                        length=50)
+                        # show mini-batch progress
+                        print_progress_bar(iteration=t-time_span//2+1,
+                                            total=image_sequence.shape[1]-time_span+1,
+                                            prefix=f'Mini-batch {t-time_span//2+1}/{image_sequence.shape[1]-time_span+1},',
+                                            suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                            length=50)
 
+                # one-sided is the modified version where [t-T, t] frames are input, estimate frame t
+                # we are using the multi-frame with T=9 dataset
+                # it has 252 frames padded with 4 additional frames on both beginning and end, in total 260
+                # in one-sided (left) version, T=5, we start at index 0, end at index 251
+                elif self.data_type == 'one-sided':
+                    for t in range(0, 252):
+                        mini_batch_start_time = time.time()
+
+                        # construct an image block with time_span
+                        cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
+                        cur_block_indices = list(range(t, t+time_span))
+
+                        # construct image block and send to GPU (we know that channel is 1)
+                        cur_image_block = image_sequence[:, cur_block_indices, 0].to(device)
+                        # construct label tile and send to GPU
+                        cur_label_true = label_sequence[:, cur_block_indices[-1]].to(device)
+
+                        # train/validate
+                        cur_label_pred = self.model(cur_image_block)
+
+                        # compute loss
+                        loss = self.loss_module(cur_label_pred, cur_label_true)
+                        if self.lmsi_loss == 'RMSE':
+                            loss = torch.sqrt(loss)
+
+                        # Before the backward pass, use the optimizer object to zero all of the
+                        # gradients for the variables it will update
+                        self.optimizer.zero_grad()
+
+                        # Backward pass: compute gradient of the loss with respect to model parameters
+                        loss.backward()
+
+                        # update to the model parameters
+                        self.optimizer.step()
+
+                        # save the loss
+                        all_losses.append(loss.detach().item())
+
+                        mini_batch_end_time = time.time()
+                        mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
+
+                        # show mini-batch progress
+                        print_progress_bar(iteration=t+1,
+                                            total=252,
+                                            prefix=f'Mini-batch {t+1}/252,',
+                                            suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                            length=50)
                 return all_losses
 
             def validate(self, image_sequence, label_sequence):
@@ -1184,38 +1238,74 @@ def main():
                     image_size = (image_sequence.shape[3], image_sequence.shape[4])
                     channel = image_sequence.shape[2]
 
-                    for t in range(time_span//2, image_sequence.shape[1]-time_span//2):
-                        mini_batch_start_time = time.time()
+                    if self.data_type == 'multi-frame':
+                        for t in range(time_span//2, image_sequence.shape[1]-time_span//2):
+                            mini_batch_start_time = time.time()
 
-                        # construct an image block with time_span
-                        cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
-                        cur_block_indices = list(range(t-time_span//2, t+time_span//2+1))
+                            # construct an image block with time_span
+                            cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
+                            cur_block_indices = list(range(t-time_span//2, t+time_span//2+1))
 
-                        # construct image block and send to GPU (we know that channel is 1)
-                        cur_image_block = image_sequence[:, cur_block_indices, 0].to(device)
-                        # construct label tile and send to GPU
-                        cur_label_true = label_sequence[:, t].to(device)
+                            # construct image block and send to GPU (we know that channel is 1)
+                            cur_image_block = image_sequence[:, cur_block_indices, 0].to(device)
+                            # construct label tile and send to GPU
+                            cur_label_true = label_sequence[:, t].to(device)
 
-                        # train/validate
-                        cur_label_pred = self.model(cur_image_block)
+                            # train/validate
+                            cur_label_pred = self.model(cur_image_block)
 
-                        # compute loss
-                        loss = self.loss_module(cur_label_pred, cur_label_true)
-                        if self.lmsi_loss == 'RMSE':
-                            loss = torch.sqrt(loss)
+                            # compute loss
+                            loss = self.loss_module(cur_label_pred, cur_label_true)
+                            if self.lmsi_loss == 'RMSE':
+                                loss = torch.sqrt(loss)
 
-                        # save the loss
-                        all_losses.append(loss.detach().item())
+                            # save the loss
+                            all_losses.append(loss.detach().item())
 
-                        mini_batch_end_time = time.time()
-                        mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
+                            mini_batch_end_time = time.time()
+                            mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
-                        # show mini-batch progress
-                        print_progress_bar(iteration=t-time_span//2+1,
-                                            total=image_sequence.shape[1]-time_span+1,
-                                            prefix=f'Mini-batch {t-time_span//2+1}/{image_sequence.shape[1]-time_span+1},',
-                                            suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
-                                            length=50)
+                            # show mini-batch progress
+                            print_progress_bar(iteration=t-time_span//2+1,
+                                                total=image_sequence.shape[1]-time_span+1,
+                                                prefix=f'Mini-batch {t-time_span//2+1}/{image_sequence.shape[1]-time_span+1},',
+                                                suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                                length=50)
+
+                    elif data_type == 'one-sided':
+                        for t in range(0, 252):
+                            mini_batch_start_time = time.time()
+
+                            # construct an image block with time_span
+                            cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
+                            cur_block_indices = list(range(t, t+time_span))
+
+                            # construct image block and send to GPU (we know that channel is 1)
+                            cur_image_block = image_sequence[:, cur_block_indices, 0].to(device)
+                            # construct label tile and send to GPU
+                            cur_label_true = label_sequence[:, cur_block_indices[-1]].to(device)
+
+                            # train/validate
+                            cur_label_pred = self.model(cur_image_block)
+
+                            # compute loss
+                            loss = self.loss_module(cur_label_pred, cur_label_true)
+                            if self.lmsi_loss == 'RMSE':
+                                loss = torch.sqrt(loss)
+
+                            # save the loss
+                            all_losses.append(loss.detach().item())
+
+                            mini_batch_end_time = time.time()
+                            mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
+
+                            # show mini-batch progress
+                            print_progress_bar(iteration=t+1,
+                                                total=252,
+                                                prefix=f'Mini-batch {t+1}/252,',
+                                                suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                                length=50)
+
 
                     return all_losses
 
@@ -1224,8 +1314,6 @@ def main():
                     'num_channels':               num_channels,
                     'time_span':                  time_span,
                     'target_dim':                 2,
-                    'mode':                       'train',
-                    'N':                          4
                  }
 
         # model, optimizer and loss
@@ -1248,7 +1336,7 @@ def main():
 
         lmsi_model.to(device)
         # define optimizer
-        if data_type == 'multi-frame':
+        if data_type == 'multi-frame' or data_type == 'one-sided':
             lmsi_optimizer = torch.optim.Adam(lmsi_model.parameters(), lr=1e-4)
         elif data_type == 'image-pair':
             lmsi_optimizer = torch.optim.Adam(lmsi_model.parameters(), lr=1e-4)
@@ -1269,7 +1357,7 @@ def main():
             all_batch_train_losses = []
             all_batch_val_losses = []
 
-            if data_type == 'multi-frame':
+            if data_type == 'multi-frame' or data_type == 'one-sided':
                 # training manager for each batch
                 training_manager = Manager(data_type, lmsi_model, loss, lmsi_optimizer, time_span)
                 # assume training data has shape (5, 16, 260, 1, 128, 128)
@@ -1632,14 +1720,14 @@ def main():
 
                 for k in range(start_index, end_index+1):
                     cur_image_pair = test_data[k:k+1].to(device)
-                    cur_label_true = test_labels[k].permute(1, 2, 0).numpy() / final_size
+                    cur_label_true = test_labels[k].permute(1, 2, 0).numpy() / final_size * 100
                     # get prediction from loaded model
                     prediction = lmsi_model(cur_image_pair)
 
                     # put on cpu and permute to channel last
                     cur_label_pred = prediction.cpu().data
                     cur_label_pred = cur_label_pred.permute(0, 2, 3, 1).numpy()
-                    cur_label_pred = cur_label_pred[0] / final_size
+                    cur_label_pred = cur_label_pred[0] / final_size * 100
 
                     # compute loss
                     cur_loss = loss_module(torch.from_numpy(cur_label_pred), torch.from_numpy(cur_label_true))
