@@ -5,11 +5,9 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import timeit
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 import tools
 

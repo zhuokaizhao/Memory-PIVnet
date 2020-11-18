@@ -20,7 +20,7 @@ import argparse
 import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image, ImageOps, ImageFont, ImageDraw
+from PIL import Image
 
 import doc
 import models
