@@ -1459,48 +1459,48 @@ def main():
             print('\nEpoch %d completed in %.3f seconds, avg train loss: %.3f, avg val loss: %.3f'
                         % ((i+1), (epoch_end_time-epoch_start_time), all_epoch_train_losses[-1], all_epoch_val_losses[-1]))
 
+            # save loss graph and model every epoch
+            if checkpoint_path != None:
+                prev_train_losses = checkpoint['train_loss']
+                prev_val_losses = checkpoint['val_loss']
+                all_epoch_train_losses = prev_train_losses + all_epoch_train_losses
+                all_epoch_val_losses = prev_val_losses + all_epoch_val_losses
+
+            plt.plot(all_epoch_train_losses, label='Train')
+            plt.plot(all_epoch_val_losses, label='Validation')
+            plt.title(f'Training and validation loss on {network_model} model')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.legend(loc='upper right')
+            loss_path = os.path.join(figs_dir, f'{network_model}_{data_type}_{time_span}_{batch_size}_{i+1}_loss.png')
+            plt.savefig(loss_path)
+            print(f'\nLoss graph has been saved to {loss_path}')
+
+            # save model as a checkpoint so further training could be resumed
+            model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_{batch_size}_{i+1}.pt')
+            # if trained on multiple GPU's, store model.module.state_dict()
+            if torch.cuda.device_count() > 1:
+                model_checkpoint = {
+                                        'epoch': i+1,
+                                        'state_dict': lmsi_model.module.state_dict(),
+                                        'optimizer': lmsi_optimizer.state_dict(),
+                                        'train_loss': all_epoch_train_losses,
+                                        'val_loss': all_epoch_val_losses
+                                    }
+            else:
+                model_checkpoint = {
+                                        'epoch': i+1,
+                                        'state_dict': lmsi_model.state_dict(),
+                                        'optimizer': lmsi_optimizer.state_dict(),
+                                        'train_loss': all_epoch_train_losses,
+                                        'val_loss': all_epoch_val_losses
+                                    }
+
+            torch.save(model_checkpoint, model_path)
+            print(f'\nTrained model checkpoint has been saved to {model_path}\n')
+
         train_end_time = time.time()
         print('\nTraining completed in %.3f seconds' % (train_end_time-train_start_time))
-
-        # save loss graph
-        if checkpoint_path != None:
-            prev_train_losses = checkpoint['train_loss']
-            prev_val_losses = checkpoint['val_loss']
-            all_epoch_train_losses = prev_train_losses + all_epoch_train_losses
-            all_epoch_val_losses = prev_val_losses + all_epoch_val_losses
-
-        plt.plot(all_epoch_train_losses, label='Train')
-        plt.plot(all_epoch_val_losses, label='Validation')
-        plt.title(f'Training and validation loss on {network_model} model')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.legend(loc='upper right')
-        loss_path = os.path.join(figs_dir, f'{network_model}_loss_{starting_epoch+num_epoch}.png')
-        plt.savefig(loss_path)
-        print(f'\nLoss graph has been saved to {loss_path}')
-
-        # save model as a checkpoint so further training could be resumed
-        model_path = os.path.join(model_dir, f'{network_model}_{time_span}_{starting_epoch+num_epoch}.pt')
-        # if trained on multiple GPU's, store model.module.state_dict()
-        if torch.cuda.device_count() > 1:
-            model_checkpoint = {
-                                    'epoch': starting_epoch+num_epoch,
-                                    'state_dict': lmsi_model.module.state_dict(),
-                                    'optimizer': lmsi_optimizer.state_dict(),
-                                    'train_loss': all_epoch_train_losses,
-                                    'val_loss': all_epoch_val_losses
-                                }
-        else:
-            model_checkpoint = {
-                                    'epoch': starting_epoch+num_epoch,
-                                    'state_dict': lmsi_model.state_dict(),
-                                    'optimizer': lmsi_optimizer.state_dict(),
-                                    'train_loss': all_epoch_train_losses,
-                                    'val_loss': all_epoch_val_losses
-                                }
-
-        torch.save(model_checkpoint, model_path)
-        print(f'\nTrained model/checkpoint has been saved to {model_path}\n')
 
 
     # new test mode for train-new that loads model and perform prediction
