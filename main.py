@@ -7,42 +7,30 @@ from __future__ import print_function
 
 import os
 # not printing tf warnings
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import sys
-import png
 import math
 import glob
-import nrrd
 import time
 import h5py
 import copy
 import torch
-import timeit
 import random
-import imageio
 import argparse
-import itertools
 import subprocess
-import torchvision
 import numpy as np
-import pyvista as pv
-import sklearn.metrics
-import tensorflow as tf
-from datetime import datetime
 import matplotlib.pyplot as plt
-import tensorflow_addons as tfa
 from PIL import Image, ImageOps, ImageFont, ImageDraw
 
 import doc
-import preprocess_data
 import models
 import plot
 import tools
 import pair_data
 
 # preferably use the non-display gpu for training
-# os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
-os.environ['CUDA_VISIBLE_DEVICES']='0'
+os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
+# os.environ['CUDA_VISIBLE_DEVICES']='0'
 # preferably use the display gpu for testing
 # os.environ['CUDA_VISIBLE_DEVICES']='2'
 
@@ -65,8 +53,8 @@ def check_system():
     if sys.version_info.minor < 4 or sys.version_info.minor > 7:
         raise Exception('Python 3.4 - 3.7 is required')
 
-    if int(tf.__version__.split('.')[0]) < 2:
-        raise Exception('TensorFlow 2 is required')
+    # if int(tf.__version__.split('.')[0]) < 2:
+    #     raise Exception('TensorFlow 2 is required')
 
     if not int(str('').join(torch.__version__.split('.')[0:2])) >= 13:
         raise Exception('At least PyTorch version 1.3.0 is needed')

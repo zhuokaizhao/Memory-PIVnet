@@ -4,15 +4,12 @@
 import os
 import time
 import torch
-import e2cnn
-import datetime
 import itertools
-import torchvision
 import numpy as np
 from PIL import Image
 
 # use cudnn
-torch.backends.cudnn.enabled = True
+# torch.backends.cudnn.enabled = True
 
 # Standard Memory-PIVnet
 class Memory_PIVnet(torch.nn.Module):
