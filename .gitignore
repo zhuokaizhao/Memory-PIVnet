@@ -10,6 +10,10 @@
 *.pth
 *.pt
 
+# plots
+*.png
+*.svg
+
 # tensorboard log
 # logs/
 # *.v2

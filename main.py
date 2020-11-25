@@ -53,9 +53,6 @@ def check_system():
     if sys.version_info.minor < 4 or sys.version_info.minor > 7:
         raise Exception('Python 3.4 - 3.7 is required')
 
-    # if int(tf.__version__.split('.')[0]) < 2:
-    #     raise Exception('TensorFlow 2 is required')
-
     if not int(str('').join(torch.__version__.split('.')[0:2])) >= 13:
         raise Exception('At least PyTorch version 1.3.0 is needed')
 
@@ -710,13 +707,28 @@ def run_test(network_model,
                             sum_endpoint_error += cur_endpoint_error
 
                     loss_unblend = sum_endpoint_error / (final_size*final_size)
+                # customized metric that converts into polar coordinates and compare
+                elif loss == 'polar':
+                    # convert both truth and predictions to polar coordinate
+                    cur_t_stitched_label_true_polar = tools.cart2pol(cur_t_stitched_label_true)
+                    cur_t_stitched_label_pred_polar = tools.cart2pol(cur_t_stitched_label_pred)
+                    # absolute magnitude difference and angle difference
+                    r_diff_mean = np.abs(cur_t_stitched_label_true_polar[:, :, 0]-cur_t_stitched_label_pred_polar[:, :, 0]).mean()
+                    theta_diff = np.abs(cur_t_stitched_label_true_polar[:, :, 1]-cur_t_stitched_label_pred_polar[:, :, 1])
+                    # wrap around for angles larger than pi
+                    theta_diff[theta_diff>2*np.pi] = 2*np.pi - theta_diff[theta_diff>2*np.pi]
+                    # compute the mean of angle difference
+                    theta_diff_mean = theta_diff.mean()
+                    # take the sum as single scalar loss
+                    loss_unblend = r_diff_mean + theta_diff_mean
+
 
                 all_losses.append(loss_unblend)
                 print(f'\nInference {loss} of unblended image t={t-time_span//2} is {loss_unblend}')
 
                 # absolute error for plotting magnitude
-                pred_error = np.sqrt(cur_t_stitched_label_pred[:,:,0]**2 + cur_t_stitched_label_pred[:,:,1]**2) \
-                                    - np.sqrt(cur_t_stitched_label_true[:,:,0]**2 + cur_t_stitched_label_true[:,:,1]**2)
+                pred_error = np.sqrt((cur_t_stitched_label_pred[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
+                                        + (cur_t_stitched_label_pred[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
 
                 if blend:
                     if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
@@ -733,12 +745,26 @@ def run_test(network_model,
                                 sum_endpoint_error_blend += cur_endpoint_error_blend
 
                         loss_blend = sum_endpoint_error_blend / (final_size*final_size)
+                    # customized metric that converts into polar coordinates and compare
+                    elif loss == 'polar':
+                        # convert both truth and predictions to polar coordinate
+                        cur_t_stitched_label_true_polar = tools.cart2pol(cur_t_stitched_label_true)
+                        cur_t_stitched_label_pred_blend_polar = tools.cart2pol(cur_t_stitched_label_pred_blend)
+                        # absolute magnitude difference and angle difference
+                        r_diff_mean_blend = np.abs(cur_t_stitched_label_true_polar[:, :, 0]-cur_t_stitched_label_pred_blend_polar[:, :, 0]).mean()
+                        theta_diff_blend = np.abs(cur_t_stitched_label_true_polar[:, :, 1]-cur_t_stitched_label_pred_blend_polar[:, :, 1])
+                        # wrap around for angles larger than pi
+                        theta_diff_blend[theta_diff_blend>2*np.pi] = 2*np.pi - theta_diff_blend[theta_diff_blend>2*np.pi]
+                        # compute the mean of angle difference
+                        theta_diff_mean_blend = theta_diff_blend.mean()
+                        # take the sum as single scalar loss
+                        loss_blend = r_diff_mean_blend + theta_diff_mean_blend
 
-                    all_losses_blend.append(loss_blend)
-                    print(f'\nInference {loss} of blended image t={t-time_span//2} is {loss_blend}')
-                    # error for plotting magnitude
-                    pred_blend_error = np.sqrt(cur_t_stitched_label_pred_blend[:,:,0]**2 + cur_t_stitched_label_pred_blend[:,:,1]**2) \
-                                        - np.sqrt(cur_t_stitched_label_true[:,:,0]**2 + cur_t_stitched_label_true[:,:,1]**2)
+                        all_losses_blend.append(loss_blend)
+                        print(f'\nInference {loss} of blended image t={t-time_span//2} is {loss_blend}')
+                        # error for plotting magnitude
+                        pred_blend_error = np.sqrt((cur_t_stitched_label_pred_blend[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
+                                                    + (cur_t_stitched_label_pred_blend[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
 
                 # save the input image, ground truth, prediction, and difference
                 if draw_normal:
@@ -750,7 +776,7 @@ def run_test(network_model,
                     cur_t_flow_pred, _ = plot.visualize_flow(cur_t_stitched_label_pred, max_vel=max_vel)
                     # visualize the error magnitude
                     plt.figure()
-                    plt.imshow(pred_error, cmap='RdBu', interpolation='nearest', vmin=-1.0, vmax=1.0)
+                    plt.imshow(pred_error, cmap='Blues', interpolation='nearest', vmin=0.0, vmax=0.5)
                     error_path = os.path.join(figs_dir, f'mfn_{t-time_span//2}_pred_unblend_error.svg')
                     plt.axis('off')
                     cbar = plt.colorbar()
@@ -762,7 +788,7 @@ def run_test(network_model,
                         cur_t_flow_pred_blend, _ = plot.visualize_flow(cur_t_stitched_label_pred_blend, max_vel=max_vel)
                         # error magnitude plot
                         plt.figure()
-                        plt.imshow(pred_blend_error, cmap='RdBu', interpolation='nearest', vmin=-1.0, vmax=1.0)
+                        plt.imshow(pred_blend_error, cmap='Blues', interpolation='nearest', vmin=0.0, vmax=0.5)
                         error_blend_path = os.path.join(figs_dir, f'mfn_{t-time_span//2}_pred_blend_error.svg')
                         plt.axis('off')
                         cbar = plt.colorbar()
@@ -807,7 +833,12 @@ def run_test(network_model,
                                 scale_units='inches')
                     plt.axis('off')
                     # annotate error
-                    plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
+                    # annotate error
+                    if loss == 'polar':
+                        plt.annotate(f'Magnitude MAE: ' + '{:.3f}'.format(r_diff_mean), (5, 10), color='white', fontsize='medium')
+                        plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean), (5, 20), color='white', fontsize='medium')
+                    else:
+                        plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
                     unblend_quiver_path = os.path.join(figs_dir, f'mfn_{t-time_span//2}_pred_unblend.svg')
                     plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=1200)
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
@@ -824,7 +855,11 @@ def run_test(network_model,
                                     scale_units='inches')
                         plt.axis('off')
                         # annotate error
-                        plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
+                        if loss == 'polar':
+                            plt.annotate(f'Magnitude MAE: ' + '{:.3f}'.format(r_diff_mean_blend), (5, 10), color='white', fontsize='medium')
+                            plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean_blend), (5, 20), color='white', fontsize='medium')
+                        else:
+                            plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
                         blend_quiver_path = os.path.join(figs_dir, f'mfn_{t-time_span//2}_pred.svg')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=1200)
                         print(f'blended quiver plot has been saved to {blend_quiver_path}')
@@ -878,7 +913,7 @@ def main():
     # loss function
     parser.add_argument('-l', '--loss', action='store', nargs=1, dest='loss')
     # checkpoint path for continuing training
-    parser.add_argument('-c', action='store', nargs=1, dest='checkpoint_path')
+    parser.add_argument('-c', '--checkpoint-path', action='store', nargs=1, dest='checkpoint_path')
     # input or output model directory
     parser.add_argument('-m', '--model-dir', action='store', nargs=1, dest='model_dir', help=doc.model_dir)
     # output directory (tfrecord in 'data' mode, figure in 'training' mode)
@@ -1267,7 +1302,9 @@ def main():
             print('\nUsing', torch.cuda.device_count(), 'GPUs')
             lmsi_model = torch.nn.DataParallel(lmsi_model)
 
+        # move model to GPU
         lmsi_model.to(device)
+
         # define optimizer
         if data_type == 'multi-frame' or data_type == 'one-sided':
             lmsi_optimizer = torch.optim.Adam(lmsi_model.parameters(), lr=1e-4)
@@ -1332,7 +1369,6 @@ def main():
                             # has shape (batch_size, 260, 1, 128, 128)
                             batch_start_time = time.time()
                             # run with returned all mini-batch losses
-                            all_mini_batch_losses = []
                             if phase == 'train':
                                 all_mini_batch_losses = training_manager.train(batch_data, batch_labels)
                             elif phase == 'val':
@@ -1351,6 +1387,9 @@ def main():
                                 all_batch_val_losses.append(mini_batch_avg_loss)
                                 print('\nValidation batch %d/%d completed in %.3f seconds, avg val loss: %.3f\n'
                                         % ((j+1), num_batch, batch_time_cost, all_batch_val_losses[-1]))
+
+                            # del all_mini_batch_losses, mini_batch_avg_loss
+
             elif data_type == 'image-pair':
                 # define loss
                 if loss == 'MSE' or loss == 'RMSE':
@@ -1459,7 +1498,7 @@ def main():
             print('\nEpoch %d completed in %.3f seconds, avg train loss: %.3f, avg val loss: %.3f'
                         % ((i+1), (epoch_end_time-epoch_start_time), all_epoch_train_losses[-1], all_epoch_val_losses[-1]))
 
-            # save loss graph and model every epoch
+            # save loss graph and model
             if checkpoint_path != None:
                 prev_train_losses = checkpoint['train_loss']
                 prev_val_losses = checkpoint['val_loss']
