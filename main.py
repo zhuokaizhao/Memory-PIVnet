@@ -19,8 +19,8 @@ import random
 import argparse
 import subprocess
 import numpy as np
-import matplotlib.pyplot as plt
 from PIL import Image
+import matplotlib.pyplot as plt
 
 import doc
 import models
@@ -776,11 +776,11 @@ def run_test(network_model,
                     cur_t_flow_pred, _ = plot.visualize_flow(cur_t_stitched_label_pred, max_vel=max_vel)
                     # visualize the error magnitude
                     plt.figure()
-                    plt.imshow(pred_error, cmap='Blues', interpolation='nearest', vmin=0.0, vmax=0.5)
-                    error_path = os.path.join(figs_dir, f'mfn_{t-time_span//2}_pred_unblend_error.svg')
+                    plt.imshow(pred_error, cmap='PuBuGn', interpolation='nearest', vmin=0.0,  vmax=1.0)
+                    error_path = os.path.join(figs_dir, f'Memory-PIVnet_{t-time_span//2}_pred_unblend_error.svg')
                     plt.axis('off')
                     cbar = plt.colorbar()
-                    cbar.set_label('Vector magnitude difference')
+                    cbar.set_label('Endpoint error')
                     plt.savefig(error_path, bbox_inches='tight', dpi=1200)
                     print(f'error magnitude plot has been saved to {error_path}')
 
@@ -788,11 +788,11 @@ def run_test(network_model,
                         cur_t_flow_pred_blend, _ = plot.visualize_flow(cur_t_stitched_label_pred_blend, max_vel=max_vel)
                         # error magnitude plot
                         plt.figure()
-                        plt.imshow(pred_blend_error, cmap='Blues', interpolation='nearest', vmin=0.0, vmax=0.5)
-                        error_blend_path = os.path.join(figs_dir, f'mfn_{t-time_span//2}_pred_blend_error.svg')
+                        plt.imshow(pred_blend_error, cmap='PuBuGn', interpolation='nearest', vmin=0.0,  vmax=1.0)
+                        error_blend_path = os.path.join(figs_dir, f'Memory-PIVnet_{t-time_span//2}_pred_blend_error.svg')
                         plt.axis('off')
                         cbar = plt.colorbar()
-                        cbar.set_label('Vector magnitude difference')
+                        # cbar.set_label('Endpoint error')
                         plt.savefig(error_blend_path, bbox_inches='tight', dpi=1200)
                         print(f'blended error magnitude plot has been saved to {error_blend_path}')
 
@@ -839,7 +839,7 @@ def run_test(network_model,
                         plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean), (5, 20), color='white', fontsize='medium')
                     else:
                         plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
-                    unblend_quiver_path = os.path.join(figs_dir, f'mfn_{t-time_span//2}_pred_unblend.svg')
+                    unblend_quiver_path = os.path.join(figs_dir, f'Memory-PIVnet_{t-time_span//2}_pred_unblend.svg')
                     plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=1200)
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
 
@@ -860,7 +860,7 @@ def run_test(network_model,
                             plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean_blend), (5, 20), color='white', fontsize='medium')
                         else:
                             plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
-                        blend_quiver_path = os.path.join(figs_dir, f'mfn_{t-time_span//2}_pred.svg')
+                        blend_quiver_path = os.path.join(figs_dir, f'Memory-PIVnet_{t-time_span//2}_pred.svg')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=1200)
                         print(f'blended quiver plot has been saved to {blend_quiver_path}')
 
@@ -1288,7 +1288,7 @@ def main():
         lmsi_model = None
         if network_model == 'memory-piv-net':
             lmsi_model = models.Memory_PIVnet(**kwargs)
-        elif network_model == 'memory-piv-net-no-neighbor':
+        elif network_model == 'memory-piv-net-no-neighbor' or network_model == 'memory-piv-net-ip':
             lmsi_model = models.Memory_PIVnet_No_Neighbor(**kwargs)
 
         # load checkpoint info if existing
@@ -1754,7 +1754,7 @@ def main():
                         assert isinstance(Q.scale, float)
                         print(f'\nQuiver plot scale is {Q.scale}')
                         plt.axis('off')
-                        true_quiver_path = os.path.join(figs_dir, f'mfn_{k}_true.svg')
+                        true_quiver_path = os.path.join(figs_dir, f'Memory-PIVnet_{k}_true.svg')
                         plt.savefig(true_quiver_path, bbox_inches='tight', dpi=1200)
                         print(f'ground truth plot has been saved to {true_quiver_path}')
 
@@ -1768,7 +1768,7 @@ def main():
                                     scale=Q.scale,
                                     scale_units='inches')
                         plt.axis('off')
-                        pred_quiver_path = os.path.join(figs_dir, f'mfn_{k}_ip_pred.svg')
+                        pred_quiver_path = os.path.join(figs_dir, f'Memory-PIVnet_{k}_ip_pred.svg')
                         # annotate error
                         plt.annotate(f'RMSE: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='large')
                         plt.savefig(pred_quiver_path, bbox_inches='tight', dpi=1200)
@@ -1779,7 +1779,7 @@ def main():
                                                 - np.sqrt(cur_label_true[:,:,0]**2 + cur_label_true[:,:,1]**2)
                         plt.figure()
                         plt.imshow(pred_error, cmap='RdBu', interpolation='nearest', vmin=-1,  vmax=1)
-                        error_path = os.path.join(figs_dir, f'mfn_{k}_ip_error.svg')
+                        error_path = os.path.join(figs_dir, f'Memory-PIVnet_{k}_ip_error.svg')
                         plt.axis('off')
                         cbar = plt.colorbar()
                         cbar.set_label('Vector magnitude difference')
