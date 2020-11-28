@@ -630,16 +630,16 @@ class Memory_PIVnet(torch.nn.Module):
 
         # flow estimation (don't use the last level when multi-frame)
         # override when using image-pair
-        if self.time_span == 2:
-            self.estimate_flow = EstimateFlow(num_levels=5,
-                                          in_channels=all_hidden_channels[-1],
-                                          feat_channels=256,
-                                          out_channels=self.target_dim)
-        else:
-            self.estimate_flow = EstimateFlow(num_levels=4,
-                                          in_channels=all_hidden_channels[-1],
-                                          feat_channels=256,
-                                          out_channels=self.target_dim)
+        # if self.time_span == 2:
+        #     self.estimate_flow = EstimateFlow(num_levels=5,
+        #                                   in_channels=all_hidden_channels[-1],
+        #                                   feat_channels=256,
+        #                                   out_channels=self.target_dim)
+        # else:
+        self.estimate_flow = EstimateFlow(num_levels=4,
+                                        in_channels=all_hidden_channels[-1],
+                                        feat_channels=256,
+                                        out_channels=self.target_dim)
 
 
 

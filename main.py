@@ -29,8 +29,8 @@ import tools
 import pair_data
 
 # preferably use the non-display gpu for training
-os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
-# os.environ['CUDA_VISIBLE_DEVICES']='0'
+# os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
+os.environ['CUDA_VISIBLE_DEVICES']='1'
 # preferably use the display gpu for testing
 # os.environ['CUDA_VISIBLE_DEVICES']='2'
 
@@ -967,7 +967,7 @@ def main():
         # load the data
         print(f'\nLoading {data_type} datasets')
         # one-sided is the half side of multi-frame
-        if data_type == 'multi-frame' or data_type == 'one-sided':
+        if data_type == 'multi-frame' or data_type == 'one-sided' or data_type == 'image-pair-tiled':
             # load training dataset
             train_dataset = h5py.File(train_dir, 'r')
             # list the number of sequences in this dataset
@@ -1057,7 +1057,7 @@ def main():
                 print(f'val_data has shape: {val_data.shape}')
                 print(f'val_labels has shape: {val_labels.shape}')
 
-        # mini-batch training/validation manager for each batch
+        # mini-batch training/validation manager for each batch (multi-frame mode)
         class Manager():
             def __init__(self, data_type, lmsi_model, lmsi_loss, optimizer, time_span):
                 self.data_type = data_type
@@ -1268,6 +1268,136 @@ def main():
 
                     return all_losses
 
+        # mini-batch training/validation manager for each batch (iamge-pair-tiled mode)
+        class Manager_IP_Tiled():
+            def __init__(self, lmsi_model, lmsi_loss, optimizer, time_span):
+                self.model = lmsi_model
+                self.lmsi_loss = lmsi_loss
+                if lmsi_loss == 'MSE' or lmsi_loss == 'RMSE':
+                    self.loss_module = torch.nn.MSELoss()
+                elif lmsi_loss == 'MAE':
+                    self.loss_module = torch.nn.L1Loss()
+                else:
+                    raise Exception(f'Unrecognized loss function: {lmsi_loss}')
+
+                self.optimizer = optimizer
+                self.time_span = time_span
+
+            def train(self, image_sequence, label_sequence):
+                # image_sequence has shape (batch_size, time_range, channel, image_height, image_width)
+                # label_sequence has shape (batch_size, time_range, target_dim, image_height//2, image_width//2)
+                self.model.train(True)
+
+                # losses for all mini-batches
+                all_losses = []
+                batch_size = image_sequence.shape[0]
+                # image size and number of channels
+                image_size = (image_sequence.shape[3], image_sequence.shape[4])
+                channel = image_sequence.shape[2]
+
+                # [t, t+1] frames are input, estimate frame t
+                # we are using the same padded dataset designed for time_span = 9
+                # which means that there are 4 padded frame on the start and end
+                # so we start at index 4, end at index 254 (included)
+                for t in range(4, 255):
+                    mini_batch_start_time = time.time()
+
+                    # construct an image block with time_span
+                    cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
+                    cur_block_indices = list(range(t, t+2))
+
+                    # construct image block and send to GPU (we know that channel is 1)
+                    cur_image_block = image_sequence[:, cur_block_indices, 0].to(device)
+                    # construct label tile and send to GPU
+                    cur_label_true = label_sequence[:, t].to(device)
+
+                    # train/validate
+                    cur_label_pred = self.model(cur_image_block)
+
+                    # print("Outside: input size", cur_image_block.size(),
+                    #         "output_size", cur_label_pred.size())
+
+                    # compute loss
+                    loss = self.loss_module(cur_label_pred, cur_label_true)
+                    if self.lmsi_loss == 'RMSE':
+                        loss = torch.sqrt(loss)
+
+                    # Before the backward pass, use the optimizer object to zero all of the
+                    # gradients for the variables it will update
+                    self.optimizer.zero_grad()
+
+                    # Backward pass: compute gradient of the loss with respect to model parameters
+                    loss.backward()
+
+                    # update to the model parameters
+                    self.optimizer.step()
+
+                    # save the loss
+                    all_losses.append(loss.detach().item())
+
+                    mini_batch_end_time = time.time()
+                    mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
+
+                    # show mini-batch progress
+                    print_progress_bar(iteration=t-4+1,
+                                        total=image_sequence.shape[1]-9,
+                                        prefix=f'Mini-batch {t-4+1}/{image_sequence.shape[1]-9},',
+                                        suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                        length=50)
+
+                return all_losses
+
+            def validate(self, image_sequence, label_sequence):
+                # image_sequence has shape (batch_size, time_range, channel, image_height, image_width)
+                # label_sequence has shape (batch_size, time_range, target_dim, image_height//2, image_width//2)
+                # self.model.train(False)
+                self.model.eval()
+
+                with torch.no_grad():
+
+                    # losses for all mini-batches
+                    all_losses = []
+                    batch_size = image_sequence.shape[0]
+                    # image size and number of channels
+                    image_size = (image_sequence.shape[3], image_sequence.shape[4])
+                    channel = image_sequence.shape[2]
+
+                    for t in range(4, 255):
+                        mini_batch_start_time = time.time()
+
+                        # construct an image block with time_span
+                        cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
+                        cur_block_indices = list(range(t, t+1))
+
+                        # construct image block and send to GPU (we know that channel is 1)
+                        cur_image_block = image_sequence[:, cur_block_indices, 0].to(device)
+                        # construct label tile and send to GPU
+                        cur_label_true = label_sequence[:, t].to(device)
+
+                        # train/validate
+                        cur_label_pred = self.model(cur_image_block)
+
+                        # compute loss
+                        loss = self.loss_module(cur_label_pred, cur_label_true)
+                        if self.lmsi_loss == 'RMSE':
+                            loss = torch.sqrt(loss)
+
+                        # save the loss
+                        all_losses.append(loss.detach().item())
+
+                        mini_batch_end_time = time.time()
+                        mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
+
+                        # show mini-batch progress
+                        print_progress_bar(iteration=t-4+1,
+                                            total=image_sequence.shape[1]-9,
+                                            prefix=f'Mini-batch {t-4+1}/{image_sequence.shape[1]-9},',
+                                            suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                            length=50)
+
+
+                    return all_losses
+
         # memory network parameters
         kwargs = {
                     'num_channels':               num_channels,
@@ -1277,7 +1407,7 @@ def main():
 
         # model, optimizer and loss
         lmsi_model = None
-        if network_model == 'memory-piv-net':
+        if network_model == 'memory-piv-net' or network_model == 'memory-piv-net-ip-tiled':
             lmsi_model = models.Memory_PIVnet(**kwargs)
         elif network_model == 'memory-piv-net-no-neighbor' or network_model == 'memory-piv-net-ip':
             lmsi_model = models.Memory_PIVnet_No_Neighbor(**kwargs)
@@ -1297,10 +1427,10 @@ def main():
         lmsi_model.to(device)
 
         # define optimizer
-        if data_type == 'multi-frame' or data_type == 'one-sided':
-            lmsi_optimizer = torch.optim.Adam(lmsi_model.parameters(), lr=1e-4)
-        elif data_type == 'image-pair':
-            lmsi_optimizer = torch.optim.Adam(lmsi_model.parameters(), lr=1e-4)
+        # if data_type == 'multi-frame' or data_type == 'one-sided':
+        #     lmsi_optimizer = torch.optim.Adam(lmsi_model.parameters(), lr=1e-4)
+        # elif data_type == 'image-pair':
+        lmsi_optimizer = torch.optim.Adam(lmsi_model.parameters(), lr=1e-4)
 
         if checkpoint_path != None:
             lmsi_optimizer.load_state_dict(checkpoint['optimizer'])
@@ -1318,9 +1448,12 @@ def main():
             all_batch_train_losses = []
             all_batch_val_losses = []
 
-            if data_type == 'multi-frame' or data_type == 'one-sided':
+            if data_type == 'multi-frame' or data_type == 'one-sided' or data_type == 'image-pair-tiled':
                 # training manager for each batch
-                training_manager = Manager(data_type, lmsi_model, loss, lmsi_optimizer, time_span)
+                if data_type == 'multi-frame' or data_type == 'one-sided':
+                    training_manager = Manager(data_type, lmsi_model, loss, lmsi_optimizer, time_span)
+                elif data_type == 'image-pair-tiled':
+                    training_manager = Manager_IP_Tiled(lmsi_model, loss, lmsi_optimizer, time_span)
                 # assume training data has shape (5, 16, 260, 1, 128, 128)
                 # which means 5 independent sequences, where each is splitted into 16 tile-sequences
                 # since time span is 9, the total time stamp is 252
@@ -1380,7 +1513,7 @@ def main():
                                         % ((j+1), num_batch, batch_time_cost, all_batch_val_losses[-1]))
 
                             # del all_mini_batch_losses, mini_batch_avg_loss
-
+            # image-pair using non-tiled dataset
             elif data_type == 'image-pair':
                 # define loss
                 if loss == 'MSE' or loss == 'RMSE':
@@ -1481,6 +1614,7 @@ def main():
 
                     print('\n')
 
+
             epoch_end_time = time.time()
             batch_avg_train_loss = np.mean(all_batch_train_losses)
             batch_avg_val_loss = np.mean(all_batch_val_losses)
@@ -1502,12 +1636,12 @@ def main():
             plt.xlabel('Epoch')
             plt.ylabel('Loss')
             plt.legend(loc='upper right')
-            loss_path = os.path.join(figs_dir, f'{network_model}_{data_type}_{time_span}_{batch_size}_{i+1}_loss.png')
+            loss_path = os.path.join(figs_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}_loss.png')
             plt.savefig(loss_path)
             print(f'\nLoss graph has been saved to {loss_path}')
 
             # save model as a checkpoint so further training could be resumed
-            model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_{batch_size}_{i+1}.pt')
+            model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
             # if trained on multiple GPU's, store model.module.state_dict()
             if torch.cuda.device_count() > 1:
                 model_checkpoint = {
