@@ -727,8 +727,8 @@ def run_test(network_model,
                 print(f'\nInference {loss} of unblended image t={t-time_span//2} is {loss_unblend}')
 
                 # absolute error for plotting magnitude
-                pred_error = np.sqrt((cur_t_stitched_label_pred[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
-                                        + (cur_t_stitched_label_pred[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
+                pred_error_unblend = np.sqrt((cur_t_stitched_label_pred[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
+                                                + (cur_t_stitched_label_pred[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
 
                 if blend:
                     if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
@@ -763,7 +763,7 @@ def run_test(network_model,
                         all_losses_blend.append(loss_blend)
                         print(f'\nInference {loss} of blended image t={t-time_span//2} is {loss_blend}')
                         # error for plotting magnitude
-                        pred_blend_error = np.sqrt((cur_t_stitched_label_pred_blend[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
+                        pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
                                                     + (cur_t_stitched_label_pred_blend[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
 
                 # save the input image, ground truth, prediction, and difference
@@ -774,27 +774,6 @@ def run_test(network_model,
                     print(f'Label max vel magnitude is {max_vel}')
                     # visualize the pred velocity field with truth's saturation range
                     cur_t_flow_pred, _ = plot.visualize_flow(cur_t_stitched_label_pred, max_vel=max_vel)
-                    # visualize the error magnitude
-                    plt.figure()
-                    plt.imshow(pred_error, cmap='PuBuGn', interpolation='nearest', vmin=0.0,  vmax=1.0)
-                    error_path = os.path.join(figs_dir, f'Memory-PIVnet_{t-time_span//2}_pred_unblend_error.svg')
-                    plt.axis('off')
-                    cbar = plt.colorbar()
-                    cbar.set_label('Endpoint error')
-                    plt.savefig(error_path, bbox_inches='tight', dpi=1200)
-                    print(f'error magnitude plot has been saved to {error_path}')
-
-                    if blend:
-                        cur_t_flow_pred_blend, _ = plot.visualize_flow(cur_t_stitched_label_pred_blend, max_vel=max_vel)
-                        # error magnitude plot
-                        plt.figure()
-                        plt.imshow(pred_blend_error, cmap='PuBuGn', interpolation='nearest', vmin=0.0,  vmax=1.0)
-                        error_blend_path = os.path.join(figs_dir, f'Memory-PIVnet_{t-time_span//2}_pred_blend_error.svg')
-                        plt.axis('off')
-                        cbar = plt.colorbar()
-                        # cbar.set_label('Endpoint error')
-                        plt.savefig(error_blend_path, bbox_inches='tight', dpi=1200)
-                        print(f'blended error magnitude plot has been saved to {error_blend_path}')
 
                     # convert to Image
                     cur_t_test_image = Image.fromarray(cur_t_test_image)
@@ -807,7 +786,7 @@ def run_test(network_model,
                     y = np.linspace(0, final_size-1, final_size)
                     y_pos, x_pos = np.meshgrid(x, y)
                     skip = 8
-                    plt.figure()
+                    plt.figure(figsize=(5, 5))
                     plt.imshow(cur_t_flow_true)
                     Q = plt.quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
@@ -823,7 +802,7 @@ def run_test(network_model,
                     print(f'ground truth quiver plot has been saved to {true_quiver_path}')
 
                     # unblended results
-                    plt.figure()
+                    plt.figure(figsize=(5, 5))
                     plt.imshow(cur_t_flow_pred)
                     plt.quiver(y_pos[::skip, ::skip],
                                 x_pos[::skip, ::skip],
@@ -833,19 +812,25 @@ def run_test(network_model,
                                 scale_units='inches')
                     plt.axis('off')
                     # annotate error
-                    # annotate error
                     if loss == 'polar':
                         plt.annotate(f'Magnitude MAE: ' + '{:.3f}'.format(r_diff_mean), (5, 10), color='white', fontsize='medium')
                         plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean), (5, 20), color='white', fontsize='medium')
                     else:
                         plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
-                    unblend_quiver_path = os.path.join(figs_dir, f'Memory-PIVnet_{t-time_span//2}_pred_unblend.svg')
+                    unblend_quiver_path = os.path.join(figs_dir, f'{network_model}_{t-time_span//2}_pred_unblend.svg')
                     plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=1200)
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
 
+                    # visualize and save the AEE
+                    aee_path = os.path.join(figs_dir, f'{network_model}_{t-time_span//2}_unblend_error.svg')
+                    plot.visualize_AEE(pred_error_unblend, aee_path)
+
+                    # same kind of plot for blended predictions
                     if blend:
+                        # prediction visualization
+                        cur_t_flow_pred_blend, _ = plot.visualize_flow(cur_t_stitched_label_pred_blend, max_vel=max_vel)
                         cur_t_flow_pred_blend = Image.fromarray(cur_t_flow_pred_blend)
-                        plt.figure()
+                        plt.figure(figsize=(5, 5))
                         plt.imshow(cur_t_flow_pred_blend)
                         plt.quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
@@ -860,9 +845,15 @@ def run_test(network_model,
                             plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean_blend), (5, 20), color='white', fontsize='medium')
                         else:
                             plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
-                        blend_quiver_path = os.path.join(figs_dir, f'Memory-PIVnet_{t-time_span//2}_pred.svg')
+                        blend_quiver_path = os.path.join(figs_dir, f'{network_model}_{t-time_span//2}_pred_blend.svg')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=1200)
                         print(f'blended quiver plot has been saved to {blend_quiver_path}')
+
+                        # AEE
+                        aee_path_blend = os.path.join(figs_dir, f'{network_model}_{t-time_span//2}_blend_error.svg')
+                        plot.visualize_AEE(pred_error_blend, aee_path_blend)
+
+
 
                     # finally save the testing image
                     test_image_path = os.path.join(figs_dir, f'test_{t-time_span//2}.png')
@@ -1676,7 +1667,7 @@ def main():
 
                 # model, optimizer and loss
                 lmsi_model = None
-                if network_model == 'memory-piv-net':
+                if network_model == 'memory-piv-net-ip':
                     lmsi_model = models.Memory_PIVnet(**kwargs)
 
                 lmsi_model.eval()
@@ -1692,30 +1683,45 @@ def main():
 
                 for k in range(start_index, end_index+1):
                     cur_image_pair = test_data[k:k+1].to(device)
-                    cur_label_true = test_labels[k].permute(1, 2, 0).numpy() / final_size * 100
+                    cur_label_true = test_labels[k].permute(1, 2, 0).numpy() / final_size
                     # get prediction from loaded model
                     prediction = lmsi_model(cur_image_pair)
 
                     # put on cpu and permute to channel last
                     cur_label_pred = prediction.cpu().data
                     cur_label_pred = cur_label_pred.permute(0, 2, 3, 1).numpy()
-                    cur_label_pred = cur_label_pred[0] / final_size * 100
+                    cur_label_pred = cur_label_pred[0] / final_size
 
                     # compute loss
-                    cur_loss = loss_module(torch.from_numpy(cur_label_pred), torch.from_numpy(cur_label_true))
-                    if loss == 'RMSE':
-                        cur_loss = torch.sqrt(cur_loss)
-                    elif loss == 'AEE':
-                        sum_endpoint_error = 0
-                        for i in range(final_size):
-                            for j in range(final_size):
-                                cur_pred = cur_label_pred[i, j]
-                                cur_true = cur_label_true[i, j]
-                                cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
-                                sum_endpoint_error += cur_endpoint_error
+                    if loss == 'RMSE' or loss == 'MSE':
+                        cur_loss = loss_module(torch.from_numpy(cur_label_pred), torch.from_numpy(cur_label_true))
+                        if loss == 'RMSE':
+                            cur_loss = torch.sqrt(cur_loss)
+                        elif loss == 'AEE':
+                            sum_endpoint_error = 0
+                            for i in range(final_size):
+                                for j in range(final_size):
+                                    cur_pred = cur_label_pred[i, j]
+                                    cur_true = cur_label_true[i, j]
+                                    cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
+                                    sum_endpoint_error += cur_endpoint_error
 
-                        # compute the average endpoint error
-                        cur_loss = sum_endpoint_error / (final_size*final_size)
+                            # compute the average endpoint error
+                            cur_loss = sum_endpoint_error / (final_size*final_size)
+                    # customized metric that converts into polar coordinates and compare
+                    elif loss == 'polar':
+                        # convert both truth and predictions to polar coordinate
+                        cur_label_true_polar = tools.cart2pol(cur_label_true)
+                        cur_label_pred_polar = tools.cart2pol(cur_label_pred)
+                        # absolute magnitude difference and angle difference
+                        r_diff_mean = np.abs(cur_label_true_polar[:, :, 0]-cur_label_pred_polar[:, :, 0]).mean()
+                        theta_diff = np.abs(cur_label_true_polar[:, :, 1]-cur_label_pred_polar[:, :, 1])
+                        # wrap around for angles larger than pi
+                        theta_diff[theta_diff>2*np.pi] = 2*np.pi - theta_diff[theta_diff>2*np.pi]
+                        # compute the mean of angle difference
+                        theta_diff_mean = theta_diff.mean()
+                        # take the sum as single scalar loss
+                        cur_loss = r_diff_mean + theta_diff_mean
 
                     if cur_loss < min_loss:
                         min_loss = cur_loss
@@ -1742,7 +1748,7 @@ def main():
                         y = np.linspace(0, final_size-1, final_size)
                         y_pos, x_pos = np.meshgrid(x, y)
                         skip = 8
-                        plt.figure()
+                        plt.figure(figsize=(5, 5))
                         plt.imshow(cur_flow_true)
                         Q = plt.quiver(y_pos[::skip, ::skip],
                                         x_pos[::skip, ::skip],
@@ -1754,12 +1760,12 @@ def main():
                         assert isinstance(Q.scale, float)
                         print(f'\nQuiver plot scale is {Q.scale}')
                         plt.axis('off')
-                        true_quiver_path = os.path.join(figs_dir, f'Memory-PIVnet_{k}_true.svg')
+                        true_quiver_path = os.path.join(figs_dir, f'{network_model}_{k}_true.svg')
                         plt.savefig(true_quiver_path, bbox_inches='tight', dpi=1200)
                         print(f'ground truth plot has been saved to {true_quiver_path}')
 
                         # prediction
-                        plt.figure()
+                        plt.figure(figsize=(5, 5))
                         plt.imshow(cur_flow_pred)
                         plt.quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
@@ -1768,28 +1774,27 @@ def main():
                                     scale=Q.scale,
                                     scale_units='inches')
                         plt.axis('off')
-                        pred_quiver_path = os.path.join(figs_dir, f'Memory-PIVnet_{k}_ip_pred.svg')
+                        pred_quiver_path = os.path.join(figs_dir, f'{network_model}_{k}_pred.svg')
                         # annotate error
-                        plt.annotate(f'RMSE: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='large')
+                        if loss == 'polar':
+                            plt.annotate(f'Magnitude MAE: ' + '{:.3f}'.format(r_diff_mean), (5, 10), color='white', fontsize='medium')
+                            plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean), (5, 20), color='white', fontsize='medium')
+                        else:
+                            plt.annotate(f'RMSE: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='large')
                         plt.savefig(pred_quiver_path, bbox_inches='tight', dpi=1200)
                         print(f'prediction plot has been saved to {pred_quiver_path}')
 
-                        # magnitude difference
-                        pred_error = np.sqrt(cur_label_pred[:,:,0]**2 + cur_label_pred[:,:,1]**2) \
-                                                - np.sqrt(cur_label_true[:,:,0]**2 + cur_label_true[:,:,1]**2)
-                        plt.figure()
-                        plt.imshow(pred_error, cmap='RdBu', interpolation='nearest', vmin=-1,  vmax=1)
-                        error_path = os.path.join(figs_dir, f'Memory-PIVnet_{k}_ip_error.svg')
-                        plt.axis('off')
-                        cbar = plt.colorbar()
-                        cbar.set_label('Vector magnitude difference')
-                        plt.savefig(error_path, bbox_inches='tight', dpi=1200)
-                        print(f'error magnitude plot has been saved to {error_path}')
+                        # average endpoint error difference
+                        pred_error = np.sqrt((cur_label_pred[:,:,0]-cur_label_true[:,:,0])**2 \
+                                        + (cur_label_pred[:,:,1]-cur_label_true[:,:,1])**2)
+                        aee_path = os.path.join(figs_dir, f'{network_model}_{k}_error.svg')
+                        plot.visualize_AEE(pred_error, aee_path)
+
 
             print(f'\nModel inference on image [{start_index}:{end_index}] completed\n')
 
             avg_loss = np.mean(all_losses)
-            print(f'Average RMSE across {end_index - start_index + 1} samples is {avg_loss}')
+            print(f'Average {loss} across {end_index - start_index + 1} samples is {avg_loss}')
             print(f'Min loss is {min_loss} at index {min_loss_index}')
 
 

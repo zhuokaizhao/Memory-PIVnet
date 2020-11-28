@@ -8,6 +8,7 @@ from __future__ import print_function
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import tools
 
@@ -152,3 +153,18 @@ def visualize_flow(flow_uv, clip_flow=None, convert_to_bgr=False, max_vel=None):
 
     return flow_compute_color(u, v, convert_to_bgr), max_vel
 
+# visualize AEE
+def visualize_AEE(pred_error, aee_path):
+    # visualize the error magnitude
+    plt.figure(figsize=(5, 5))
+    ax = plt.gca()
+    im = ax.imshow(pred_error, cmap='PuBuGn', interpolation='nearest', vmin=0.0,  vmax=1.0)
+    plt.axis('off')
+    # create an axes on the right side of plt. The width of cax will be 5%
+    # of ax and the padding between cax and ax will be fixed at 0.05 inch.
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.3)
+    cbar = plt.colorbar(im, cax=cax)
+    # cbar.set_label('Endpoint error')
+    plt.savefig(aee_path, bbox_inches='tight', dpi=1200)
+    print(f'AEE plot has been saved to {aee_path}')
