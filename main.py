@@ -468,8 +468,8 @@ def run_test(network_model,
         # check if input parameters are valid
         if start_t < 0:
             raise Exception('Invalid start_t')
-        elif end_t > all_test_image_sequences.shape[2]-time_span:
-            raise Exception(f'Invalid end_t > total number of time frames {all_test_image_sequences.shape[2]-time_span}')
+        elif end_t > all_test_image_sequences.shape[2]-9:
+            raise Exception(f'Invalid end_t > total number of time frames {all_test_image_sequences.shape[2]-9}')
 
         # define the loss
         if loss == 'MSE' or loss == 'RMSE':
@@ -945,7 +945,8 @@ def main():
             print(f'\nmode: {mode}')
 
         network_model = args.network_model[0]
-        # data_type can be image-pair or multi-frame (default)
+
+        # data_type can be image-pair, multi-frame (default) or image-pair-tiled
         if args.data_type != None:
             data_type = args.data_type[0]
         else:
@@ -953,6 +954,14 @@ def main():
 
         train_dir = args.train_dir[0]
         val_dir = args.val_dir[0]
+
+        # sanity check to make sure network model and data type are compatible
+        if network_model == 'memory-piv-net':
+            if data_type == 'image-pair-tiled':
+                raise Exception('Non-compatible network model and data type')
+        elif network_model == 'memory-piv-net-ip-tiled':
+            if data_type != 'image-pair-tiled':
+                raise Exception('Non-compatible network model and data type')
 
         # checkpoint path to load the model from
         if args.checkpoint_path != None:
@@ -998,7 +1007,7 @@ def main():
             all_train_image_sequences = np.array(all_train_image_sequences)
             all_train_label_sequences = np.array(all_train_label_sequences)
 
-            # prepare pytorch training data
+            # prepare pytorch training data (make them channel-first)
             all_train_image_sequences = torch.from_numpy(all_train_image_sequences).float().permute(0, 1, 2, 5, 3, 4)
             all_train_label_sequences = torch.from_numpy(all_train_label_sequences).float().permute(0, 1, 2, 5, 3, 4)
 
@@ -1018,7 +1027,7 @@ def main():
             all_val_image_sequences = np.array(all_val_image_sequences)
             all_val_label_sequences = np.array(all_val_label_sequences)
 
-            # prepare pytorch training data
+            # prepare pytorch training data (make them channel-first)
             all_val_image_sequences = torch.from_numpy(all_val_image_sequences).float().permute(0, 1, 2, 5, 3, 4)
             all_val_label_sequences = torch.from_numpy(all_val_label_sequences).float().permute(0, 1, 2, 5, 3, 4)
 
@@ -1026,6 +1035,8 @@ def main():
             tile_size = (all_train_label_sequences.shape[4], all_train_label_sequences.shape[5])
             num_channels = all_train_image_sequences.shape[-3]
             num_tiles_per_image = all_train_image_sequences.shape[1]
+
+        # non-tiled image-pair dataset
         elif data_type == 'image-pair':
             # Read data
             train_img1_name_list, train_img2_name_list, train_gt_name_list = pair_data.read_all(train_dir)
@@ -1046,7 +1057,7 @@ def main():
             print(f'netowrk model: {network_model}')
             print(f'dataset type: {data_type}')
             print(f'input training data dir: {train_dir}')
-            if data_type == 'multi-frame':
+            if data_type == 'multi-frame' or data_type == 'one-sided' or data_type == 'image-pair-tiled':
                 print(f'input validation data dir: {val_dir}')
             print(f'input checkpoint path: {checkpoint_path}')
             print(f'output model dir: {model_dir}')
@@ -1056,7 +1067,7 @@ def main():
             print(f'loss function: {loss}')
             print(f'number of image channel: {num_channels}')
             print(f'time span: {time_span}')
-            if data_type == 'multi-frame' or data_type == 'one-sided':
+            if data_type == 'multi-frame' or data_type == 'one-sided' or data_type == 'image-pair-tiled':
                 print(f'tile size: ({tile_size[0]}, {tile_size[1]})')
                 print(f'num_tiles_per_image: {num_tiles_per_image}')
                 print(f'\n{num_train_sequences} sequences of training data is detected')
@@ -1101,7 +1112,7 @@ def main():
 
                 # multi-frame is the standard version where [t-T//2, t+T//2] frames are input, estimate frame t
                 if self.data_type == 'multi-frame':
-                    for t in range(time_span//2, image_sequence.shape[1]-time_span//2):
+                    for t in range(9//2, image_sequence.shape[1]-9//2):
                         mini_batch_start_time = time.time()
 
                         # construct an image block with time_span
@@ -1115,9 +1126,6 @@ def main():
 
                         # train/validate
                         cur_label_pred = self.model(cur_image_block)
-
-                        # print("Outside: input size", cur_image_block.size(),
-                        #         "output_size", cur_label_pred.size())
 
                         # compute loss
                         loss = self.loss_module(cur_label_pred, cur_label_true)
@@ -1141,9 +1149,9 @@ def main():
                         mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
                         # show mini-batch progress
-                        print_progress_bar(iteration=t-time_span//2+1,
-                                            total=image_sequence.shape[1]-time_span+1,
-                                            prefix=f'Mini-batch {t-time_span//2+1}/{image_sequence.shape[1]-time_span+1},',
+                        print_progress_bar(iteration=t-9//2+1,
+                                            total=image_sequence.shape[1]-9+1,
+                                            prefix=f'Mini-batch {t-9//2+1}/{image_sequence.shape[1]-9+1},',
                                             suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
                                             length=50)
 
@@ -1212,7 +1220,7 @@ def main():
                     channel = image_sequence.shape[2]
 
                     if self.data_type == 'multi-frame':
-                        for t in range(time_span//2, image_sequence.shape[1]-time_span//2):
+                        for t in range(9//2, image_sequence.shape[1]-9//2):
                             mini_batch_start_time = time.time()
 
                             # construct an image block with time_span
@@ -1239,9 +1247,9 @@ def main():
                             mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
                             # show mini-batch progress
-                            print_progress_bar(iteration=t-time_span//2+1,
-                                                total=image_sequence.shape[1]-time_span+1,
-                                                prefix=f'Mini-batch {t-time_span//2+1}/{image_sequence.shape[1]-time_span+1},',
+                            print_progress_bar(iteration=t-9//2+1,
+                                                total=image_sequence.shape[1]-9+1,
+                                                prefix=f'Mini-batch {t-9//2+1}/{image_sequence.shape[1]-9+1},',
                                                 suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
                                                 length=50)
 
@@ -1297,6 +1305,9 @@ def main():
                 self.optimizer = optimizer
                 self.time_span = time_span
 
+                if self.time_span != 2:
+                    raise Exception('image-pair-tiled datasets require time span be 2')
+
             def train(self, image_sequence, label_sequence):
                 # image_sequence has shape (batch_size, time_range, channel, image_height, image_width)
                 # label_sequence has shape (batch_size, time_range, target_dim, image_height//2, image_width//2)
@@ -1317,7 +1328,7 @@ def main():
                     mini_batch_start_time = time.time()
 
                     # construct an image block with time_span
-                    cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
+                    cur_image_block = np.zeros((batch_size, channel*self.time_span, image_size[0], image_size[1]))
                     cur_block_indices = list(range(t, t+2))
 
                     # construct image block and send to GPU (we know that channel is 1)
@@ -1327,9 +1338,6 @@ def main():
 
                     # train/validate
                     cur_label_pred = self.model(cur_image_block)
-
-                    # print("Outside: input size", cur_image_block.size(),
-                    #         "output_size", cur_label_pred.size())
 
                     # compute loss
                     loss = self.loss_module(cur_label_pred, cur_label_true)
@@ -1441,9 +1449,6 @@ def main():
         lmsi_model.to(device)
 
         # define optimizer
-        # if data_type == 'multi-frame' or data_type == 'one-sided':
-        #     lmsi_optimizer = torch.optim.Adam(lmsi_model.parameters(), lr=1e-4)
-        # elif data_type == 'image-pair':
         lmsi_optimizer = torch.optim.Adam(lmsi_model.parameters(), lr=1e-4)
 
         if checkpoint_path != None:
@@ -1706,6 +1711,14 @@ def main():
         loss = args.loss[0]
         final_size = 256
 
+        # sanity check to make sure network model and data type are compatible
+        if network_model == 'memory-piv-net':
+            if data_type == 'image-pair-tiled':
+                raise Exception('Non-compatible network model and data type')
+        elif network_model == 'memory-piv-net-ip-tiled':
+            if data_type != 'image-pair-tiled':
+                raise Exception('Non-compatible network model and data type')
+
         # load testing dataset
         if data_type == 'multi-frame' or data_type == 'image-pair-tiled':
             test_dataset = h5py.File(test_dir, 'r')
@@ -1738,6 +1751,8 @@ def main():
             test_data, test_labels = pair_data.construct_dataset(img1_name_list, img2_name_list, gt_name_list)
             # parameters loaded from input data
             num_channels = test_data.shape[1] // 2
+        else:
+            raise Exception('Unsupported data type')
 
         if verbose:
             print(f'\nGPU usage: {device}')
