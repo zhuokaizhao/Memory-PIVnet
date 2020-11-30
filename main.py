@@ -30,9 +30,9 @@ import pair_data
 
 # preferably use the non-display gpu for training
 # os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+# os.environ['CUDA_VISIBLE_DEVICES']='1'
 # preferably use the display gpu for testing
-# os.environ['CUDA_VISIBLE_DEVICES']='2'
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
@@ -50,8 +50,8 @@ print ('Current cuda device ', torch.cuda.current_device())
 
 # perform some system checks
 def check_system():
-    if sys.version_info.minor < 4 or sys.version_info.minor > 7:
-        raise Exception('Python 3.4 - 3.7 is required')
+    if sys.version_info.minor < 8:
+        raise Exception('Python 3.8 is required')
 
     if not int(str('').join(torch.__version__.split('.')[0:2])) >= 13:
         raise Exception('At least PyTorch version 1.3.0 is needed')
@@ -488,7 +488,7 @@ def run_test(network_model,
 
         # model, optimizer and loss
         lmsi_model = None
-        if network_model == 'memory-piv-net':
+        if network_model == 'memory-piv-net' or network_model == 'memory-piv-net-ip-tiled':
             lmsi_model = models.Memory_PIVnet(**kwargs)
         elif network_model == 'memory-piv-net-no-neighbor':
             lmsi_model = models.Memory_PIVnet_No_Neighbor(**kwargs)
@@ -538,10 +538,20 @@ def run_test(network_model,
             all_losses = []
             all_losses_blend = []
 
-            for t in range(time_span//2+start_t, time_span//2+end_t+1):
-                print(f'\nInferencing t={t-time_span//2}')
-                # cur_t_image_block has shape (16, time_span, 128, 128)
-                cur_t_image_block = cur_image_sequence[:, t-time_span//2:t+time_span//2+1]
+            # the dataset is generated based on time_span = 9
+            # so 4 frames are padded at the beginning and the end
+            # since we want to start at the first non-padded frame, it would always be at 9//2=4
+            # since end_t is defined to be included, we add 1 at the end
+            for t in range(9//2+start_t, 9//2+end_t+1):
+                print(f'\nInferencing t={t-9//2}')
+                # when image pair mode, we have a different setting
+                if network_model == 'memory-piv-net-ip-tiled':
+                    # cur_t_image_block has shape (16, 2, 128, 128)
+                    cur_t_image_block = cur_image_sequence[:, t:t+2]
+                else:
+                    # cur_t_image_block has shape (16, time_span, 128, 128)
+                    cur_t_image_block = cur_image_sequence[:, t-time_span//2:t+time_span//2+1]
+
                 print(f'cur_t_image_block.shape {cur_t_image_block.shape}')
                 # cur_t_label_tile has shape (16, target_dim, 64, 64)
                 cur_t_label_tile = cur_label_sequence[:, t]
@@ -584,7 +594,7 @@ def run_test(network_model,
                     w = i % num_tile_column
 
                     # take the center part if padded data
-                    if network_model == 'memory-piv-net':
+                    if network_model == 'memory-piv-net' or network_model == 'memory-piv-net-ip-tiled':
                         cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
                                             w*label_tile_width:(w+1)*label_tile_width,
                                             :] \
@@ -724,7 +734,7 @@ def run_test(network_model,
 
 
                 all_losses.append(loss_unblend)
-                print(f'\nInference {loss} of unblended image t={t-time_span//2} is {loss_unblend}')
+                print(f'\nInference {loss} of unblended image t={t-9//2} is {loss_unblend}')
 
                 # absolute error for plotting magnitude
                 pred_error_unblend = np.sqrt((cur_t_stitched_label_pred[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
@@ -760,11 +770,12 @@ def run_test(network_model,
                         # take the sum as single scalar loss
                         loss_blend = r_diff_mean_blend + theta_diff_mean_blend
 
-                        all_losses_blend.append(loss_blend)
-                        print(f'\nInference {loss} of blended image t={t-time_span//2} is {loss_blend}')
-                        # error for plotting magnitude
-                        pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
-                                                    + (cur_t_stitched_label_pred_blend[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
+                    all_losses_blend.append(loss_blend)
+                    print(f'\nInference {loss} of blended image t={t-9//2} is {loss_blend}')
+
+                    # error for plotting magnitude
+                    pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
+                                                + (cur_t_stitched_label_pred_blend[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
 
                 # save the input image, ground truth, prediction, and difference
                 if draw_normal:
@@ -797,7 +808,7 @@ def run_test(network_model,
                     Q._init()
                     assert isinstance(Q.scale, float)
                     plt.axis('off')
-                    true_quiver_path = os.path.join(figs_dir, f'true_{t-time_span//2}.svg')
+                    true_quiver_path = os.path.join(figs_dir, f'true_{t-9//2}.svg')
                     plt.savefig(true_quiver_path, bbox_inches='tight', dpi=1200)
                     print(f'ground truth quiver plot has been saved to {true_quiver_path}')
 
@@ -817,7 +828,8 @@ def run_test(network_model,
                         plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean), (5, 20), color='white', fontsize='medium')
                     else:
                         plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
-                    unblend_quiver_path = os.path.join(figs_dir, f'{network_model}_{t-time_span//2}_pred_unblend.svg')
+
+                    unblend_quiver_path = os.path.join(figs_dir, f'{network_model}_{t-9//2}_pred_unblend.svg')
                     plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=1200)
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
 
@@ -845,18 +857,19 @@ def run_test(network_model,
                             plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean_blend), (5, 20), color='white', fontsize='medium')
                         else:
                             plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
-                        blend_quiver_path = os.path.join(figs_dir, f'{network_model}_{t-time_span//2}_pred_blend.svg')
+
+                        blend_quiver_path = os.path.join(figs_dir, f'{network_model}_{t-9//2}_pred_blend.svg')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=1200)
                         print(f'blended quiver plot has been saved to {blend_quiver_path}')
 
                         # AEE
-                        aee_path_blend = os.path.join(figs_dir, f'{network_model}_{t-time_span//2}_blend_error.svg')
+                        aee_path_blend = os.path.join(figs_dir, f'{network_model}_{t-9//2}_blend_error.svg')
                         plot.visualize_AEE(pred_error_blend, aee_path_blend)
 
 
 
                     # finally save the testing image
-                    test_image_path = os.path.join(figs_dir, f'test_{t-time_span//2}.png')
+                    test_image_path = os.path.join(figs_dir, f'test_{t-9//2}.png')
                     cur_t_test_image.save(test_image_path)
                     print(f'Test image has been saved to {test_image_path}')
 
@@ -864,8 +877,9 @@ def run_test(network_model,
             min_loss = np.min(all_losses)
             min_loss_index = np.where(all_losses == min_loss)
             avg_loss = np.mean(all_losses)
-            print(f'Average unblended {loss} is {avg_loss}')
+            print(f'\nAverage unblended {loss} is {avg_loss}')
             print(f'Min unblended {loss} is {min_loss} at t={min_loss_index}\n')
+
             if blend:
                 min_loss_blend = np.min(all_losses_blend)
                 min_loss_index_blend = np.where(all_losses_blend == min_loss_blend)
@@ -904,7 +918,7 @@ def main():
     # loss function
     parser.add_argument('-l', '--loss', action='store', nargs=1, dest='loss')
     # checkpoint path for continuing training
-    parser.add_argument('-c', '--checkpoint-path', action='store', nargs=1, dest='checkpoint_path')
+    parser.add_argument('-c', '--checkpoint-dir', action='store', nargs=1, dest='checkpoint_path')
     # input or output model directory
     parser.add_argument('-m', '--model-dir', action='store', nargs=1, dest='model_dir', help=doc.model_dir)
     # output directory (tfrecord in 'data' mode, figure in 'training' mode)
@@ -1367,7 +1381,7 @@ def main():
 
                         # construct an image block with time_span
                         cur_image_block = np.zeros((batch_size, channel*time_span, image_size[0], image_size[1]))
-                        cur_block_indices = list(range(t, t+1))
+                        cur_block_indices = list(range(t, t+2))
 
                         # construct image block and send to GPU (we know that channel is 1)
                         cur_image_block = image_sequence[:, cur_block_indices, 0].to(device)
@@ -1623,45 +1637,45 @@ def main():
             print('\nEpoch %d completed in %.3f seconds, avg train loss: %.3f, avg val loss: %.3f'
                         % ((i+1), (epoch_end_time-epoch_start_time), all_epoch_train_losses[-1], all_epoch_val_losses[-1]))
 
-            # save loss graph and model
-            if checkpoint_path != None:
-                prev_train_losses = checkpoint['train_loss']
-                prev_val_losses = checkpoint['val_loss']
-                all_epoch_train_losses = prev_train_losses + all_epoch_train_losses
-                all_epoch_val_losses = prev_val_losses + all_epoch_val_losses
+        # save loss graph and model
+        if checkpoint_path != None:
+            prev_train_losses = checkpoint['train_loss']
+            prev_val_losses = checkpoint['val_loss']
+            all_epoch_train_losses = prev_train_losses + all_epoch_train_losses
+            all_epoch_val_losses = prev_val_losses + all_epoch_val_losses
 
-            plt.plot(all_epoch_train_losses, label='Train')
-            plt.plot(all_epoch_val_losses, label='Validation')
-            plt.title(f'Training and validation loss on {network_model} model')
-            plt.xlabel('Epoch')
-            plt.ylabel('Loss')
-            plt.legend(loc='upper right')
-            loss_path = os.path.join(figs_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}_loss.png')
-            plt.savefig(loss_path)
-            print(f'\nLoss graph has been saved to {loss_path}')
+        plt.plot(all_epoch_train_losses, label='Train')
+        plt.plot(all_epoch_val_losses, label='Validation')
+        plt.title(f'Training and validation loss on {network_model} model')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend(loc='upper right')
+        loss_path = os.path.join(figs_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}_loss.png')
+        plt.savefig(loss_path)
+        print(f'\nLoss graph has been saved to {loss_path}')
 
-            # save model as a checkpoint so further training could be resumed
-            model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
-            # if trained on multiple GPU's, store model.module.state_dict()
-            if torch.cuda.device_count() > 1:
-                model_checkpoint = {
-                                        'epoch': i+1,
-                                        'state_dict': lmsi_model.module.state_dict(),
-                                        'optimizer': lmsi_optimizer.state_dict(),
-                                        'train_loss': all_epoch_train_losses,
-                                        'val_loss': all_epoch_val_losses
-                                    }
-            else:
-                model_checkpoint = {
-                                        'epoch': i+1,
-                                        'state_dict': lmsi_model.state_dict(),
-                                        'optimizer': lmsi_optimizer.state_dict(),
-                                        'train_loss': all_epoch_train_losses,
-                                        'val_loss': all_epoch_val_losses
-                                    }
+        # save model as a checkpoint so further training could be resumed
+        model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
+        # if trained on multiple GPU's, store model.module.state_dict()
+        if torch.cuda.device_count() > 1:
+            model_checkpoint = {
+                                    'epoch': i+1,
+                                    'state_dict': lmsi_model.module.state_dict(),
+                                    'optimizer': lmsi_optimizer.state_dict(),
+                                    'train_loss': all_epoch_train_losses,
+                                    'val_loss': all_epoch_val_losses
+                                }
+        else:
+            model_checkpoint = {
+                                    'epoch': i+1,
+                                    'state_dict': lmsi_model.state_dict(),
+                                    'optimizer': lmsi_optimizer.state_dict(),
+                                    'train_loss': all_epoch_train_losses,
+                                    'val_loss': all_epoch_val_losses
+                                }
 
-            torch.save(model_checkpoint, model_path)
-            print(f'\nTrained model checkpoint has been saved to {model_path}\n')
+        torch.save(model_checkpoint, model_path)
+        print(f'\nTrained model checkpoint has been saved to {model_path}\n')
 
         train_end_time = time.time()
         print('\nTraining completed in %.3f seconds' % (train_end_time-train_start_time))
@@ -1693,7 +1707,7 @@ def main():
         final_size = 256
 
         # load testing dataset
-        if data_type == 'multi-frame':
+        if data_type == 'multi-frame' or data_type == 'image-pair-tiled':
             test_dataset = h5py.File(test_dir, 'r')
             # list the number of sequences in this dataset
             num_test_sequences = len(list(test_dataset.keys())) // 2
@@ -1746,7 +1760,7 @@ def main():
 
 
         # run testing inference
-        if data_type == 'multi-frame':
+        if data_type == 'multi-frame' or data_type == 'image-pair-tiled':
             # start and end of t (both inclusive)
             start_t = 41
             end_t = 41
