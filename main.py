@@ -829,12 +829,12 @@ def run_test(network_model,
                     else:
                         plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
 
-                    unblend_quiver_path = os.path.join(figs_dir, f'{network_model}_{t-9//2}_pred_unblend.svg')
+                    unblend_quiver_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_unblend.svg')
                     plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=1200)
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
 
                     # visualize and save the AEE
-                    aee_path = os.path.join(figs_dir, f'{network_model}_{t-time_span//2}_unblend_error.svg')
+                    aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-time_span//2}_unblend_error.svg')
                     plot.visualize_AEE(pred_error_unblend, aee_path)
 
                     # same kind of plot for blended predictions
@@ -858,12 +858,12 @@ def run_test(network_model,
                         else:
                             plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
 
-                        blend_quiver_path = os.path.join(figs_dir, f'{network_model}_{t-9//2}_pred_blend.svg')
+                        blend_quiver_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_blend.svg')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=1200)
                         print(f'blended quiver plot has been saved to {blend_quiver_path}')
 
                         # AEE
-                        aee_path_blend = os.path.join(figs_dir, f'{network_model}_{t-9//2}_blend_error.svg')
+                        aee_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.svg')
                         plot.visualize_AEE(pred_error_blend, aee_path_blend)
 
 
