@@ -21,6 +21,7 @@ import subprocess
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 import doc
 import models
@@ -28,10 +29,6 @@ import plot
 import tools
 import pair_data
 
-# preferably use the non-display gpu for training
-# os.environ['CUDA_VISIBLE_DEVICES']='0, 1'
-# os.environ['CUDA_VISIBLE_DEVICES']='1'
-# preferably use the display gpu for testing
 os.environ['CUDA_VISIBLE_DEVICES']='0'
 
 print('\n\nPython VERSION:', sys.version)
@@ -879,6 +876,17 @@ def run_test(network_model,
             avg_loss = np.mean(all_losses)
             print(f'\nAverage unblended {loss} is {avg_loss}')
             print(f'Min unblended {loss} is {min_loss} at t={min_loss_index}\n')
+            # save all the losses to file
+            loss_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.npy')
+            np.save(loss_path, all_losses)
+            # generate loss curve plot
+            t = np.arange(start_t, end_t+1)
+            fig, ax = plt.subplots()
+            ax.plot(t, all_losses)
+            ax.set(xlabel='timestamp', ylabel=f'{loss}')
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.svg')
+            fig.savefig(loss_curve_path, bbox_inches='tight')
 
             if blend:
                 min_loss_blend = np.min(all_losses_blend)
@@ -886,6 +894,15 @@ def run_test(network_model,
                 avg_loss_blend = np.mean(all_losses_blend)
                 print(f'Average blended {loss} is {avg_loss_blend}')
                 print(f'Min blended {loss} is {min_loss_blend} at t={min_loss_index_blend}')
+                loss_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.npy')
+                np.save(loss_path_blend, all_losses_blend)
+                # generate loss curve plot
+                fig, ax = plt.subplots()
+                ax.plot(t, all_losses_blend)
+                ax.set(xlabel='timestamp', ylabel=f'{loss}')
+                ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+                loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
+                fig.savefig(loss_curve_path, bbox_inches='tight')
 
 
 
@@ -1720,7 +1737,7 @@ def main():
                 raise Exception('Non-compatible network model and data type')
 
         # load testing dataset
-        if data_type == 'multi-frame' or data_type == 'image-pair-tiled':
+        if data_type == 'multi-frame' or data_type == 'image-pair-tiled' or data_type == 'one-sided':
             test_dataset = h5py.File(test_dir, 'r')
             # list the number of sequences in this dataset
             num_test_sequences = len(list(test_dataset.keys())) // 2
@@ -1775,10 +1792,10 @@ def main():
 
 
         # run testing inference
-        if data_type == 'multi-frame' or data_type == 'image-pair-tiled':
+        if data_type == 'multi-frame' or data_type == 'image-pair-tiled' or data_type == 'one-sided':
             # start and end of t (both inclusive)
-            start_t = 41
-            end_t = 41
+            start_t = 0
+            end_t = 251
             print(f'Testing from t = {start_t} to {end_t} (both side inclusive)')
 
             run_test(network_model,
@@ -1796,7 +1813,7 @@ def main():
                     final_size,
                     device,
                     blend=True,
-                    draw_normal=True,
+                    draw_normal=False,
                     draw_glyph=False)
 
             print(f'\nModel inference on image [{start_t}:{end_t}] completed\n')
