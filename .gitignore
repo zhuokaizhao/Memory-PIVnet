@@ -13,6 +13,7 @@
 # plots
 *.png
 *.svg
+*.npy
 
 # tensorboard log
 # logs/

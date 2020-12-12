@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name=memory-piv-net    # create a short name for your job
+#SBATCH --nodes=1                    # node count
+#SBATCH --ntasks=1                   # total number of tasks across all nodes
+#SBATCH --cpus-per-task=1            # cpu-cores per task (>1 if multi-threaded tasks)
+#SBATCH --mem=4G                     # total memory per node (4 GB per cpu-core is default)
+#SBATCH --partition general
+#SBATCH --gres=gpu:rtx8000:1         # number of gpus per node
+#SBATCH --time=04:00:00              # total run time limit (HH:MM:SS)
+#SBATCH --mail-type=begin            # send email when job begins
+#SBATCH --mail-type=end              # send email when job ends
+#SBATCH --mail-user=zhuokai@cs.uchicago.edu
+
+conda activate pt-env
+python net/scratch/zhuokai/Memory-PIVnet/main.py --mode train --network-model memory-piv-net --train-dir /net/scratch/zhuokai/Data/LMSI/Zhao_JHTDB/Isotropic_1024/PT_Dataset/with_neighbor/surrounding/100000_seeds/train/train_data_tilesize_64_64.h5 --val-dir /net/scratch/zhuokai/Data/LMSI/Zhao_JHTDB/Isotropic_1024/PT_Dataset/with_neighbor/surrounding/100000_seeds/val/val_data_tilesize_64_64.h5 --model-dir /home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/model/Isotropic_1024/100000_seeds/time_span_5/ --output-dir /home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/figs/Isotropic_1024/100000_seeds/time_span_5/ -t 5 -l RMSE --data-type multi-frame --batch-size 4 --num-epoch 1 -v
