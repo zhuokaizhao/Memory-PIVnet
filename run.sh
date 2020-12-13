@@ -38,4 +38,5 @@ do
 	fi
 
 	sbatch job${i}.slurm
+	sleep 2h
 done
