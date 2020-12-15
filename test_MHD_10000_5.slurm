@@ -12,13 +12,4 @@
 #SBATCH --mail-user=zhuokai@cs.uchicago.edu
 
 conda activate pt-env
-srun python /net/scratch/zhuokai/Memory-PIVnet/main.py \
---mode test \
---network-model memory-piv-net \
---test-dir /net/scratch/zhuokai/Data/LMSI/Zhao_JHTDB/MHD_1024/PT_Dataset/10000_seeds/test/test_data_tilesize_64_64.h5 \
---model-dir /net/scratch/zhuokai/Memory-PIVnet/model/MHD_1024/10000_seeds/time_span_5/memory-piv-net_multi-frame_5_batch4_epoch50.pt \
---output-dir /net/scratch/zhuokai/Memory-PIVnet/figs/MHD_1024/10000_seeds/time_span_5/ \
--t 5 \
--l RMSE \
---data-type multi-frame \
--v
+srun python /net/scratch/zhuokai/Memory-PIVnet/main.py --mode test --network-model memory-piv-net --test-dir /net/scratch/zhuokai/Data/LMSI/Zhao_JHTDB/MHD_1024/PT_Dataset/10000_seeds/test/test_data_tilesize_64_64.h5 --model-dir /net/scratch/zhuokai/Memory-PIVnet/model/MHD_1024/10000_seeds/time_span_5/memory-piv-net_multi-frame_5_batch4_epoch50.pt --output-dir /net/scratch/zhuokai/Memory-PIVnet/figs/MHD_1024/10000_seeds/time_span_5/ -t 5 -l RMSE --data-type multi-frame -v

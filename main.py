@@ -29,7 +29,7 @@ import plot
 import tools
 import pair_data
 
-os.environ['CUDA_VISIBLE_DEVICES']='2'
+# os.environ['CUDA_VISIBLE_DEVICES']='2'
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
