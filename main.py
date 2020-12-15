@@ -29,7 +29,7 @@ import plot
 import tools
 import pair_data
 
-# os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='2'
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
@@ -1795,7 +1795,7 @@ def main():
         if data_type == 'multi-frame' or data_type == 'image-pair-tiled' or data_type == 'one-sided':
             # start and end of t (both inclusive)
             start_t = 0
-            end_t = 251
+            end_t = 51
             print(f'Testing from t = {start_t} to {end_t} (both side inclusive)')
 
             run_test(network_model,
