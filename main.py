@@ -29,7 +29,7 @@ import plot
 import tools
 import pair_data
 
-# os.environ['CUDA_VISIBLE_DEVICES']='2'
+os.environ['CUDA_VISIBLE_DEVICES']='1'
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
@@ -831,7 +831,7 @@ def run_test(network_model,
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
 
                     # visualize and save the AEE
-                    aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-time_span//2}_unblend_error.svg')
+                    aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.svg')
                     plot.visualize_AEE(pred_error_unblend, aee_path)
 
                     # same kind of plot for blended predictions
@@ -1794,8 +1794,8 @@ def main():
         # run testing inference
         if data_type == 'multi-frame' or data_type == 'image-pair-tiled' or data_type == 'one-sided':
             # start and end of t (both inclusive)
-            start_t = 0
-            end_t = 51
+            start_t = 25
+            end_t = 25
             print(f'Testing from t = {start_t} to {end_t} (both side inclusive)')
 
             run_test(network_model,
@@ -1813,7 +1813,7 @@ def main():
                     final_size,
                     device,
                     blend=True,
-                    draw_normal=False,
+                    draw_normal=True,
                     draw_glyph=False)
 
             print(f'\nModel inference on image [{start_t}:{end_t}] completed\n')
