@@ -18,7 +18,7 @@ for i in `seq $start_epoch $end_epoch`; do
 	echo "#SBATCH --nodes=1" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --ntasks=1" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --cpus-per-task=1" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
-	echo "#SBATCH --mem=4G" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
+	echo "#SBATCH --mem=15G" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --partition general" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --gres=${GPU}" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --time=02:00:00" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
