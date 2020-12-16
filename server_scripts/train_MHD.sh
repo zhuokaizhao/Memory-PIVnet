@@ -1,5 +1,7 @@
 #!/bin/bash
 # ask for starting and ending epoch
+echo "What GPU do you want to use (gpu:1 or gpu:rtx8000:1)?"
+read GPU
 echo "What is the number of seeds (10000, 50000 or 100000)?"
 read num_seeds
 echo "What is the time span (3, 5, 7 or 9)?"
@@ -18,7 +20,7 @@ for i in `seq $start_epoch $end_epoch`; do
 	echo "#SBATCH --cpus-per-task=1" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --mem=8G" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --partition general" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
-	echo "#SBATCH --gres=gpu:rtx8000:1" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
+	echo "#SBATCH --gres=${GPU}" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --time=02:00:00" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --mail-type=begin" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --mail-type=end" >> train_MHD_${num_seeds}_${time_span}_${i}.slurm
