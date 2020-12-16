@@ -28,12 +28,12 @@ for i in `seq $start_epoch $end_epoch`; do
 	fi
 	# submit job
     sbatch train_MHD_50000_5_${i}.slurm
+	rm train_MHD_50000_5_${i}.slurm
 	# wait until the current epoch training finished
 	until [ -f /net/scratch/zhuokai/Memory-PIVnet/model/MHD_1024/50000_seeds/time_span_5/memory-piv-net_multi-frame_5_batch4_epoch${i}.pt ]
 	do
 		sleep 5
 	done
-	rm train_MHD_50000_5_${i}.slurm
 done
 
 echo "Training from epoch $start_epoch to $end_epoch is completed"
