@@ -29,7 +29,7 @@ import plot
 import tools
 import pair_data
 
-# os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
@@ -940,6 +940,9 @@ def main():
     parser.add_argument('-m', '--model-dir', action='store', nargs=1, dest='model_dir', help=doc.model_dir)
     # output directory (tfrecord in 'data' mode, figure in 'training' mode)
     parser.add_argument('-o', '--output-dir', action='store', nargs=1, dest='output_dir', help=doc.figs_dir)
+    # start and end t used when testing (both inclusive)
+    parser.add_argument('--start-t', action='store', nargs=1, dest='start_t')
+    parser.add_argument('--end-t', action='store', nargs=1, dest='end_t')
     # verbosity
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose', default=False)
     args = parser.parse_args()
@@ -1723,6 +1726,8 @@ def main():
         model_dir = args.model_dir[0]
         figs_dir = args.output_dir[0]
         time_span = int(args.time_span[0])
+        start_t = int(args.start_t[0])
+        end_t = int(args.end_t[0])
         # useful arguments in this mode
         target_dim = 2
         loss = args.loss[0]
@@ -1780,6 +1785,8 @@ def main():
             print(f'loss function: {loss}')
             print(f'number of image channel: {num_channels}')
             print(f'time span: {time_span}')
+            print(f'start_t: {start_t}')
+            print(f'end_t: {end_t}')
             if data_type == 'multi-frame':
                 print(f'tile size: ({tile_size[0]}, {tile_size[1]})')
                 print(f'num_tiles_per_image: {num_tiles_per_image}')
@@ -1793,9 +1800,7 @@ def main():
 
         # run testing inference
         if data_type == 'multi-frame' or data_type == 'image-pair-tiled' or data_type == 'one-sided':
-            # start and end of t (both inclusive)
-            start_t = 25
-            end_t = 25
+            # MHD 25, Isotropic 41
             print(f'Testing from t = {start_t} to {end_t} (both side inclusive)')
 
             run_test(network_model,
@@ -1821,13 +1826,13 @@ def main():
         elif data_type == 'image-pair':
             with torch.no_grad():
                 # start and end of index (both inclusive)
-                start_index = 41
-                end_index = 41
+                start_t = 41
+                end_t = 41
                 visualize = True
                 # check if input parameters are valid
-                if start_index < 0:
+                if start_t < 0:
                     raise Exception('Invalid start_index')
-                elif end_index > test_data.shape[0]-1:
+                elif end_t > test_data.shape[0]-1:
                     raise Exception(f'Invalid end_index > total number of image pair {test_data.shape[0]}')
 
                 # define the loss
@@ -1861,7 +1866,7 @@ def main():
                 min_loss_index = 0
                 all_losses = []
 
-                for k in range(start_index, end_index+1):
+                for k in range(start_t, end_t+1):
                     cur_image_pair = test_data[k:k+1].to(device)
                     cur_label_true = test_labels[k].permute(1, 2, 0).numpy() / final_size
                     # get prediction from loaded model
@@ -1971,10 +1976,10 @@ def main():
                         plot.visualize_AEE(pred_error, aee_path)
 
 
-            print(f'\nModel inference on image [{start_index}:{end_index}] completed\n')
+            print(f'\nModel inference on image [{start_t}:{end_t}] completed\n')
 
             avg_loss = np.mean(all_losses)
-            print(f'Average {loss} across {end_index - start_index + 1} samples is {avg_loss}')
+            print(f'Average {loss} across {end_t - start_t + 1} samples is {avg_loss}')
             print(f'Min loss is {min_loss} at index {min_loss_index}')
 
 
