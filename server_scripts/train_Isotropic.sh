@@ -21,7 +21,7 @@ for i in `seq $start_epoch $end_epoch`; do
 	echo "#SBATCH --mem=15G" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --partition general" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --gres=${GPU}" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
-	echo "#SBATCH --time=02:00:00" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
+	echo "#SBATCH --time=04:00:00" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --mail-type=begin" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --mail-type=end" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --mail-user=zhuokai@cs.uchicago.edu" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
