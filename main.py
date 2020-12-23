@@ -904,7 +904,13 @@ def run_test(network_model,
                 loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
                 fig.savefig(loss_curve_path, bbox_inches='tight')
 
+def repackage_hidden(h):
+    """Wraps hidden states in new Tensors, to detach them from their history."""
 
+    if isinstance(h, torch.Tensor):
+        return h.detach()
+    else:
+        return list(repackage_hidden(v) for v in h)
 
 def main():
 
@@ -943,6 +949,8 @@ def main():
     # start and end t used when testing (both inclusive)
     parser.add_argument('--start-t', action='store', nargs=1, dest='start_t')
     parser.add_argument('--end-t', action='store', nargs=1, dest='end_t')
+    # whether use persistent memory state
+    parser.add_argument('--long-term-memory', action='store_true', dest='long_term_memory', default=False)
     # verbosity
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose', default=False)
     args = parser.parse_args()
@@ -1001,6 +1009,7 @@ def main():
         else:
             time_span = None
         loss = args.loss[0]
+        long_term_memory = args.long_term_memory
 
         # make sure the model_dir is valid
         if not os.path.exists(model_dir):
@@ -1087,6 +1096,7 @@ def main():
             print(f'loss function: {loss}')
             print(f'number of image channel: {num_channels}')
             print(f'time span: {time_span}')
+            print(f'preserve memory stage: {long_term_memory}')
             if data_type == 'multi-frame' or data_type == 'one-sided' or data_type == 'image-pair-tiled':
                 print(f'tile size: ({tile_size[0]}, {tile_size[1]})')
                 print(f'num_tiles_per_image: {num_tiles_per_image}')
@@ -1144,8 +1154,22 @@ def main():
                         # construct label tile and send to GPU
                         cur_label_true = label_sequence[:, t].to(device)
 
-                        # train/validate
-                        cur_label_pred = self.model(cur_image_block)
+                        # detach states
+                        if long_term_memory:
+                            # train/validate
+                            if t - 9//2 == 0:
+                                h_prev_time = []
+                                c_prev_time = []
+
+                            h_prev_time = repackage_hidden(h_prev_time)
+                            c_prev_time = repackage_hidden(c_prev_time)
+                            cur_label_pred, h_cur_time, c_cur_time = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
+                            h_prev_time = h_cur_time
+                            c_prev_time = c_cur_time
+                        else:
+                            h_prev_time = []
+                            c_prev_time = []
+                            cur_label_pred, _, _ = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
 
                         # compute loss
                         loss = self.loss_module(cur_label_pred, cur_label_true)
@@ -1252,8 +1276,22 @@ def main():
                             # construct label tile and send to GPU
                             cur_label_true = label_sequence[:, t].to(device)
 
-                            # train/validate
-                            cur_label_pred = self.model(cur_image_block)
+                            # detach states
+                            if long_term_memory:
+                                # train/validate
+                                if t - 9//2 == 0:
+                                    h_prev_time = []
+                                    c_prev_time = []
+
+                                h_prev_time = repackage_hidden(h_prev_time)
+                                c_prev_time = repackage_hidden(c_prev_time)
+                                cur_label_pred, h_cur_time, c_cur_time = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
+                                h_prev_time = h_cur_time
+                                c_prev_time = c_cur_time
+                            else:
+                                h_prev_time = []
+                                c_prev_time = []
+                                cur_label_pred, _, _ = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
 
                             # compute loss
                             loss = self.loss_module(cur_label_pred, cur_label_true)

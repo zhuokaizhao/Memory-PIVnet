@@ -307,14 +307,22 @@ class Memory_PIVnet(torch.nn.Module):
 
                     # h_prev_layer: h from the previous memory layer of the CURRENT time stamp, used as LSTM input
                     # h_prev_time/c_prev_time: h and c from the same memory layer of the PREVIOUS time stamp
-                    def forward(self, t, h_prev_layer, h_prev_time, c_prev_time):
+                    def forward(self, t, k, h_prev_layer, h_prev_time, c_prev_time, long_term_memory):
                         # time stamp sanity check
-                        if t == 0:
-                            if h_prev_time != [] or c_prev_time != []:
-                                raise Exception('First time stamp should have empty h_prev_time, c_prev_time')
+                        if long_term_memory:
+                            if t == 0 and k == 0:
+                                if h_prev_time != [] or c_prev_time != []:
+                                    raise Exception('First time stamp should have empty h_prev_time, c_prev_time')
+                            else:
+                                if len(h_prev_time) != self.num_level or len(c_prev_time) != self.num_level:
+                                    raise Exception(f'Unmatched level number ({self.num_level}) with h_prev_time ({len(h_prev_time)}), c_prev_time ({len(c_prev_time)})')
                         else:
-                            if len(h_prev_time) != self.num_level or len(c_prev_time) != self.num_level:
-                                raise Exception(f'Unmatched level number ({self.num_level}) with h_prev_time ({len(h_prev_time)}), c_prev_time ({len(c_prev_time)})')
+                            if k == 0:
+                                if h_prev_time != [] or c_prev_time != []:
+                                    raise Exception('First time stamp should have empty h_prev_time, c_prev_time')
+                            else:
+                                if len(h_prev_time) != self.num_level or len(c_prev_time) != self.num_level:
+                                    raise Exception(f'Unmatched level number ({self.num_level}) with h_prev_time ({len(h_prev_time)}), c_prev_time ({len(c_prev_time)})')
 
                         # if the first layer, input is the [x], which has only one resolution(level)
                         if self.layer_index == 0:
@@ -375,14 +383,24 @@ class Memory_PIVnet(torch.nn.Module):
                                                                   shape=(height, width))
 
                             # when first time stamp, use initialized h and c as h_prev_time and c_prev_time
-                            if t == 0:
-                                cur_h, cur_c = ConvLSTM(cur_x=cur_x,
-                                                        prev_h=init_h,
-                                                        prev_c=init_c)
+                            if long_term_memory:
+                                if t == 0:
+                                    cur_h, cur_c = ConvLSTM(cur_x=cur_x,
+                                                            prev_h=init_h,
+                                                            prev_c=init_c)
+                                else:
+                                    cur_h, cur_c = ConvLSTM(cur_x=cur_x,
+                                                            prev_h=h_prev_time[i],
+                                                            prev_c=c_prev_time[i])
                             else:
-                                cur_h, cur_c = ConvLSTM(cur_x=cur_x,
-                                                        prev_h=h_prev_time[i],
-                                                        prev_c=c_prev_time[i])
+                                if k == 0:
+                                    cur_h, cur_c = ConvLSTM(cur_x=cur_x,
+                                                            prev_h=init_h,
+                                                            prev_c=init_c)
+                                else:
+                                    cur_h, cur_c = ConvLSTM(cur_x=cur_x,
+                                                            prev_h=h_prev_time[i],
+                                                            prev_c=c_prev_time[i])
 
                             h_cur_layer.append(cur_h)
                             c_cur_layer.append(cur_c)
@@ -465,11 +483,11 @@ class Memory_PIVnet(torch.nn.Module):
                 setattr(self, layer_name, memory_layer)
 
 
-            def forward(self, t, x, h_prev_time, c_prev_time):
+            def forward(self, t, k, x, h_prev_time, c_prev_time, long_term_memory):
 
-                if t == 0:
+                if t == 0 and k == 0:
                     if h_prev_time != [] or c_prev_time != []:
-                        raise Exception('For the first time stamp, h_prev_time and c_prev_time should have been set to None.')
+                        raise Exception(f'For t = {t}, h_prev_time and c_prev_time should have been set to [].')
 
                 # current time stamp's all layers' state outputs
                 h_cur_time = []
@@ -482,10 +500,17 @@ class Memory_PIVnet(torch.nn.Module):
                         # first layer takes the input as prev_layer h
                         h_prev_layer = [x]
 
-                    if t == 0:
-                        h_cur_layer, c_cur_layer = memory_layer(t, h_prev_layer, [], [])
+                    # long-term memory mode requres only initialization at the very beginning
+                    if long_term_memory:
+                        if t == 0 and k == 0:
+                            h_cur_layer, c_cur_layer = memory_layer(t, k, h_prev_layer, [], [], long_term_memory)
+                        else:
+                            h_cur_layer, c_cur_layer = memory_layer(t, k, h_prev_layer, h_prev_time[i], c_prev_time[i], long_term_memory)
                     else:
-                        h_cur_layer, c_cur_layer = memory_layer(t, h_prev_layer, h_prev_time[i], c_prev_time[i])
+                        if k == 0:
+                            h_cur_layer, c_cur_layer = memory_layer(t, k, h_prev_layer, [], [], long_term_memory)
+                        else:
+                            h_cur_layer, c_cur_layer = memory_layer(t, k, h_prev_layer, h_prev_time[i], c_prev_time[i], long_term_memory)
 
                     h_prev_layer = h_cur_layer.copy()
 
@@ -617,7 +642,7 @@ class Memory_PIVnet(torch.nn.Module):
 
                     pred_flow = level_flow(x[i], prev_pred_flow)
 
-                    prev_pred_flow = pred_flow.clone()
+                    prev_pred_flow = pred_flow
 
                 # in the end, 256x256 flow was obtained needs to downsample
                 # pred_flow = self.downsample_flow(pred_flow)
@@ -644,21 +669,18 @@ class Memory_PIVnet(torch.nn.Module):
 
 
 
-    def forward(self, x):
+    def forward(self, t, x, h_prev_time, c_prev_time, long_term_memory):
         # split x into time_span number of pieces in channel dimension
         x = torch.split(tensor=x,
                         split_size_or_sections=self.num_channels,
                         dim=1)
 
-        # initialize
-        h_prev_time = []
-        c_prev_time = []
-        for t in range(self.time_span):
-            cur_x = x[t]
-            h_cur_time, c_cur_time = self.memory_network(t, cur_x, h_prev_time, c_prev_time)
+        for k in range(self.time_span):
+            cur_x = x[k]
+            h_cur_time, c_cur_time = self.memory_network(t, k, cur_x, h_prev_time, c_prev_time, long_term_memory)
 
-            h_prev_time = h_cur_time.copy()
-            c_prev_time = c_cur_time.copy()
+            h_prev_time = h_cur_time
+            c_prev_time = c_cur_time
 
         # final time stamp's h and c are used for flow prediction
         final_h = h_cur_time[-1]
@@ -666,10 +688,7 @@ class Memory_PIVnet(torch.nn.Module):
         # flow estimation
         pred_flow = self.estimate_flow(final_h)
 
-        # print("\tIn Model: input size", x.shape,
-        #       "output size", pred_flow.shape)
-
-        return pred_flow
+        return pred_flow, h_cur_time, c_cur_time
 
 
 # Memory-PIVnet that outputs same resolution outputs as inputs (no input neighboring padding)
