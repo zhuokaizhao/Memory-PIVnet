@@ -14,7 +14,7 @@ read end_epoch
 for i in `seq $start_epoch $end_epoch`; do
     echo "Training epoch" $i
 	echo "#!/bin/bash" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
-	echo "#SBATCH --job-name=train_MHD_${num_seeds}_${time_span}_${i}" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
+	echo "#SBATCH --job-name=train_Isotropic_${num_seeds}_${time_span}_${i}" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --nodes=1" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --ntasks=1" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --cpus-per-task=1" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
