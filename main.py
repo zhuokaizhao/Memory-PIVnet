@@ -20,6 +20,7 @@ import argparse
 import subprocess
 import numpy as np
 from PIL import Image
+from subprocess import call
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
@@ -33,9 +34,6 @@ os.environ['CUDA_VISIBLE_DEVICES']='0'
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
-from subprocess import call
-# call(["nvcc", "--version"]) does not work
-# ! nvcc --version
 print('CUDNN VERSION:', torch.backends.cudnn.version())
 print('Number CUDA Devices:', torch.cuda.device_count())
 print('Devices')
@@ -50,8 +48,8 @@ def check_system():
     if sys.version_info.minor < 8:
         raise Exception('Python 3.8 is required')
 
-    if not int(str('').join(torch.__version__.split('.')[0:2])) >= 13:
-        raise Exception('At least PyTorch version 1.3.0 is needed')
+    if not int(str('').join(torch.__version__.split('.')[0:2])) >= 17:
+        raise Exception('At least PyTorch version 1.7.0 is needed')
 
 
 # Print iterations progress

@@ -675,6 +675,12 @@ class Memory_PIVnet(torch.nn.Module):
                         split_size_or_sections=self.num_channels,
                         dim=1)
 
+        # suppose first chunk is [0, 8], then next chunk is [1, 9]
+        # so when processing the second chunk, we want the hidden state memory stage
+        # after 0 in the first chunk
+        h_prev_chunk = None
+        c_prev_chunk = None
+
         for k in range(self.time_span):
             cur_x = x[k]
             h_cur_time, c_cur_time = self.memory_network(t, k, cur_x, h_prev_time, c_prev_time, long_term_memory)
@@ -682,13 +688,18 @@ class Memory_PIVnet(torch.nn.Module):
             h_prev_time = h_cur_time
             c_prev_time = c_cur_time
 
+            if k == 0:
+                h_prev_chunk = h_cur_time.copy()
+                c_prev_chunk = c_cur_time.copy()
+
         # final time stamp's h and c are used for flow prediction
         final_h = h_cur_time[-1]
 
         # flow estimation
         pred_flow = self.estimate_flow(final_h)
 
-        return pred_flow, h_cur_time, c_cur_time
+        # return pred_flow, h_cur_time, c_cur_time
+        return pred_flow, h_prev_chunk, c_prev_chunk
 
 
 # Memory-PIVnet that outputs same resolution outputs as inputs (no input neighboring padding)
