@@ -457,6 +457,7 @@ def run_test(network_model,
             num_tiles_per_image,
             final_size,
             device,
+            long_term_memory,
             blend=False,
             draw_normal=True,
             draw_glyph=False):
@@ -579,7 +580,22 @@ def run_test(network_model,
                     cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
 
                     # run inference
-                    prediction = lmsi_model(cur_t_tile_block)
+                    # prediction = lmsi_model(cur_t_tile_block)
+                    if long_term_memory:
+                        # train/validate
+                        if t - 9//2 == 0:
+                            h_prev_time = []
+                            c_prev_time = []
+
+                        h_prev_time = repackage_hidden(h_prev_time)
+                        c_prev_time = repackage_hidden(c_prev_time)
+                        prediction, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
+                        h_prev_time = h_cur_time
+                        c_prev_time = c_cur_time
+                    else:
+                        h_prev_time = []
+                        c_prev_time = []
+                        prediction, _, _ = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
 
                     # put on cpu and permute to channel last
                     cur_t_tile_label_pred = prediction.cpu().data
@@ -1324,8 +1340,22 @@ def main():
                             # construct label tile and send to GPU
                             cur_label_true = label_sequence[:, cur_block_indices[-1]].to(device)
 
-                            # train/validate
-                            cur_label_pred = self.model(cur_image_block)
+                            # detach states
+                            if long_term_memory:
+                                # train/validate
+                                if t - 9//2 == 0:
+                                    h_prev_time = []
+                                    c_prev_time = []
+
+                                h_prev_time = repackage_hidden(h_prev_time)
+                                c_prev_time = repackage_hidden(c_prev_time)
+                                cur_label_pred, h_cur_time, c_cur_time = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
+                                h_prev_time = h_cur_time
+                                c_prev_time = c_cur_time
+                            else:
+                                h_prev_time = []
+                                c_prev_time = []
+                                cur_label_pred, _, _ = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
 
                             # compute loss
                             loss = self.loss_module(cur_label_pred, cur_label_true)
@@ -1394,8 +1424,22 @@ def main():
                     # construct label tile and send to GPU
                     cur_label_true = label_sequence[:, t].to(device)
 
-                    # train/validate
-                    cur_label_pred = self.model(cur_image_block)
+                    # detach states
+                    if long_term_memory:
+                        # train/validate
+                        if t - 9//2 == 0:
+                            h_prev_time = []
+                            c_prev_time = []
+
+                        h_prev_time = repackage_hidden(h_prev_time)
+                        c_prev_time = repackage_hidden(c_prev_time)
+                        cur_label_pred, h_cur_time, c_cur_time = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
+                        h_prev_time = h_cur_time
+                        c_prev_time = c_cur_time
+                    else:
+                        h_prev_time = []
+                        c_prev_time = []
+                        cur_label_pred, _, _ = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
 
                     # compute loss
                     loss = self.loss_module(cur_label_pred, cur_label_true)
@@ -1454,8 +1498,22 @@ def main():
                         # construct label tile and send to GPU
                         cur_label_true = label_sequence[:, t].to(device)
 
-                        # train/validate
-                        cur_label_pred = self.model(cur_image_block)
+                        # detach states
+                        if long_term_memory:
+                            # train/validate
+                            if t - 9//2 == 0:
+                                h_prev_time = []
+                                c_prev_time = []
+
+                            h_prev_time = repackage_hidden(h_prev_time)
+                            c_prev_time = repackage_hidden(c_prev_time)
+                            cur_label_pred, h_cur_time, c_cur_time = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
+                            h_prev_time = h_cur_time
+                            c_prev_time = c_cur_time
+                        else:
+                            h_prev_time = []
+                            c_prev_time = []
+                            cur_label_pred, _, _ = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
 
                         # compute loss
                         loss = self.loss_module(cur_label_pred, cur_label_true)
@@ -1855,6 +1913,7 @@ def main():
                     num_tiles_per_image,
                     final_size,
                     device,
+                    long_term_memory,
                     blend=True,
                     draw_normal=True,
                     draw_glyph=False)
