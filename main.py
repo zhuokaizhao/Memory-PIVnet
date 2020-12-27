@@ -77,7 +77,8 @@ def print_progress_bar (iteration, total, prefix = '', suffix = '', decimals = 1
 
 # helper functions on blendings
 # blend the top let part of the input tile
-def blend_top_left(i,
+def blend_top_left(t,
+                    i,
                     device,
                     lmsi_model,
                     cur_t_image_block,
@@ -87,14 +88,24 @@ def blend_top_left(i,
                     label_tile_height,
                     label_tile_width,
                     num_tile_column,
-                    target_dim):
+                    target_dim,
+                    long_term_memory,
+                    h_prev_time=None,
+                    c_prev_time=None):
 
     print('blending top left')
+    if long_term_memory:
+        if h_prev_time == None or c_prev_time == None:
+            raise Exception('h_prev_time and c_prev_time are required when testing using non-amnesia mode')
 
-    # construct data for its y00
+    # construct data for its y00, y01, y10 and y11
     # cur_t_image_block has shape (16, time_span, 128, 128)
-    # cur_t_tile_block_00 has shape (1, time_span, 128, 128)
+    # cur_t_tile_block_00/01/10/11 has shape (1, time_span, 128, 128)
     cur_t_tile_block_00 = torch.zeros(cur_t_image_block[0:1].shape)
+    cur_t_tile_block_01 = torch.zeros(cur_t_image_block[0:1].shape)
+    cur_t_tile_block_10 = torch.zeros(cur_t_image_block[0:1].shape)
+
+    # construct 00
     # top left is the previous-row previous(left) tile's center part
     if i-num_tile_column-1 >= 0:
         cur_t_tile_block_00[:, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i-num_tile_column-1:i-num_tile_column, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
@@ -106,40 +117,51 @@ def blend_top_left(i,
         cur_t_tile_block_00[:, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i-1:i, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # bottom right is the current tile's center part
     cur_t_tile_block_00[:, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i:i+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
-    # get prediction y00
-    prediction_00 = lmsi_model(cur_t_tile_block_00.to(device))
-    # put on cpu and permute to channel last
-    y00 = prediction_00.cpu().data
-    y00 = y00.permute(0, 2, 3, 1).numpy()
-    y00 = y00[0, label_tile_height//2:, label_tile_width//2:]
 
-    # construct data for its y01
-    # cur_t_image_block has shape (16, time_span, 128, 128)
-    # cur_t_tile_block_01 has shape (1, time_span, 128, 128)
-    cur_t_tile_block_01 = torch.zeros(cur_t_image_block[0:1].shape)
+    # construct 01
     # top half is the previous-row tile's horizontal central slice
     if i-num_tile_column >= 0:
         cur_t_tile_block_01[:, :, :image_tile_height//2, :] = cur_t_image_block[i-num_tile_column:i-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, :]
     # bottom half is the current tile's horizontal central slice
     cur_t_tile_block_01[:, :, image_tile_height//2:, :] = cur_t_image_block[i:i+1, :, image_tile_width//4:image_tile_width*3//4, :]
-    # get prediction y01
-    prediction_01 = lmsi_model(cur_t_tile_block_01.to(device))
-    # put on cpu and permute to channel last
-    y01 = prediction_01.cpu().data
-    y01 = y01.permute(0, 2, 3, 1).numpy()
-    y01 = y01[0, label_tile_height//2:, :label_tile_width//2]
 
-    # construct data for its y10
-    # cur_t_image_block has shape (16, time_span, 128, 128)
-    # cur_t_tile_block_10 has shape (1, time_span, 128, 128)
-    cur_t_tile_block_10 = torch.zeros(cur_t_image_block[0:1].shape)
+    # construct 10
     # left half is the previous tile's vertical central slice
     if i-1 >= 0:
         cur_t_tile_block_10[:, :, :, :image_tile_width//2] = cur_t_image_block[i-1:i, :, :, image_tile_width//4:image_tile_width*3//4]
     # right half is the current tile's vertical central slice
     cur_t_tile_block_10[:, :, :, image_tile_width//2:] = cur_t_image_block[i:i+1, :, :, image_tile_width//4:image_tile_width*3//4]
-    # get prediction y10
-    prediction_10 = lmsi_model(cur_t_tile_block_10.to(device))
+
+    # get prediction for y00, y01, y10 and y11
+    if long_term_memory:
+        # train/validate
+        if t - 9//2 == 0:
+            h_prev_time = []
+            c_prev_time = []
+
+        h_prev_time = repackage_hidden(h_prev_time)
+        c_prev_time = repackage_hidden(c_prev_time)
+        prediction_00, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_00.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_01, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_01.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_10, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_10.to(device), h_prev_time, c_prev_time, long_term_memory)
+        h_prev_time = h_cur_time
+        c_prev_time = c_cur_time
+    else:
+        h_prev_time = []
+        c_prev_time = []
+        prediction_00, _, _ = lmsi_model(t-9//2, cur_t_tile_block_00.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_01, _, _ = lmsi_model(t-9//2, cur_t_tile_block_01.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_10, _, _ = lmsi_model(t-9//2, cur_t_tile_block_10.to(device), h_prev_time, c_prev_time, long_term_memory)
+
+
+    # put prediction on cpu and permute to channel last
+    y00 = prediction_00.cpu().data
+    y00 = y00.permute(0, 2, 3, 1).numpy()
+    y00 = y00[0, label_tile_height//2:, label_tile_width//2:]
+    # put on cpu and permute to channel last
+    y01 = prediction_01.cpu().data
+    y01 = y01.permute(0, 2, 3, 1).numpy()
+    y01 = y01[0, label_tile_height//2:, :label_tile_width//2]
     # put on cpu and permute to channel last
     y10 = prediction_10.cpu().data
     y10 = y10.permute(0, 2, 3, 1).numpy()
@@ -163,7 +185,8 @@ def blend_top_left(i,
 
 
 # blend the top right part of the input tile
-def blend_top_right(i,
+def blend_top_right(t,
+                    i,
                     device,
                     lmsi_model,
                     cur_t_image_block,
@@ -173,40 +196,31 @@ def blend_top_right(i,
                     label_tile_height,
                     label_tile_width,
                     num_tile_column,
-                    target_dim):
+                    target_dim,
+                    long_term_memory,
+                    h_prev_time=None,
+                    c_prev_time=None):
 
     print('blending top right')
+    if long_term_memory:
+        if h_prev_time == None or c_prev_time == None:
+            raise Exception('h_prev_time and c_prev_time are required when testing using non-amnesia mode')
 
-    # construct data for its y00
     # cur_t_image_block has shape (16, time_span, 128, 128)
     # cur_t_tile_block_00 has shape (1, time_span, 128, 128)
     cur_t_tile_block_00 = torch.zeros(cur_t_image_block[0:1].shape)
+    cur_t_tile_block_01 = torch.zeros(cur_t_image_block[0:1].shape)
+    cur_t_tile_block_11 = torch.zeros(cur_t_image_block[0:1].shape)
+
+    # construct data for its y00
     # top half is the previous-row tile's horizontal center slice
     # remain black if unavailable
     if i-num_tile_column >= 0:
         cur_t_tile_block_00[:, :, :image_tile_height//2, :] = cur_t_image_block[i-num_tile_column:i-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, :]
     # bottom half is the current tile's horizontal center slice
     cur_t_tile_block_00[:, :, image_tile_height//2:, :] = cur_t_image_block[i:i+1, :, image_tile_width//4:image_tile_width*3//4, :]
-    # get prediction y00
-    prediction_00 = lmsi_model(cur_t_tile_block_00.to(device))
-    # put on cpu and permute to channel last
-    y00 = prediction_00.cpu().data
-    y00 = y00.permute(0, 2, 3, 1).numpy()
-
-    # if i==0:
-    #     y00_vis = lmsi_plot.visualize_flow(y00[0])
-    #     # convert to Image
-    #     y00_image = Image.fromarray(y00_vis)
-    #     y00_image_path = os.path.join('/home/zhuokai/Desktop/UChicago/Research/Learning-How-To-Measure-Scientific-Images/Python/figs/MemoryFlowNet3/Blending_test/', f'tile_{i}_00.png')
-    #     y00_image.save(y00_image_path)
-    #     print(f'y00 has been saved to {y00_image_path}')
-
-    y00 = y00[0, label_tile_height//2:, label_tile_width//2:]
 
     # construct data for its y01
-    # cur_t_image_block has shape (16, time_span, 128, 128)
-    # cur_t_tile_block_01 has shape (1, time_span, 128, 128)
-    cur_t_tile_block_01 = torch.zeros(cur_t_image_block[0:1].shape)
     # top left is the previous-row tile's center part
     if i-num_tile_column >= 0:
         cur_t_tile_block_01[:, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i-num_tile_column:i-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
@@ -218,33 +232,51 @@ def blend_top_right(i,
     # bottom right is the next tile's center part
     if i+1 < num_tile_column**2:
         cur_t_tile_block_01[:, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i+1:i+2, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
-    # get prediction y01
-    prediction_01 = lmsi_model(cur_t_tile_block_01.to(device))
-    # put on cpu and permute to channel last
-    y01 = prediction_01.cpu().data
-    y01 = y01.permute(0, 2, 3, 1).numpy()
-    y01 = y01[0, label_tile_height//2:, :label_tile_width//2]
-
-    # current prediction is its y10
-    y10 = cur_t_tile_label_pred[:label_tile_height//2, label_tile_width//2:]
-
-
 
     # construct data for its y11
-    # cur_t_image_block has shape (16, time_span, 128, 128)
-    # cur_t_tile_block_11 has shape (1, time_span, 128, 128)
-    cur_t_tile_block_11 = torch.zeros(cur_t_image_block[0:1].shape)
     # left half is the current tile's vertical central slice
     cur_t_tile_block_11[:, :, :, :image_tile_width//2] = cur_t_image_block[i:i+1, :, :, image_tile_width//4:image_tile_width*3//4]
     # right half is the next tile's vertical central slice
     if i+1 < num_tile_column**2:
         cur_t_tile_block_11[:, :, :, image_tile_width//2:] = cur_t_image_block[i+1:i+2, :, :, image_tile_width//4:image_tile_width*3//4]
-    # get prediction y11
-    prediction_11 = lmsi_model(cur_t_tile_block_11.to(device))
+
+
+    # get prediction y00, y01 and y11
+    if long_term_memory:
+        # train/validate
+        if t - 9//2 == 0:
+            h_prev_time = []
+            c_prev_time = []
+
+        h_prev_time = repackage_hidden(h_prev_time)
+        c_prev_time = repackage_hidden(c_prev_time)
+        prediction_00, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_00.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_01, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_01.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_11, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_11.to(device), h_prev_time, c_prev_time, long_term_memory)
+        h_prev_time = h_cur_time
+        c_prev_time = c_cur_time
+    else:
+        h_prev_time = []
+        c_prev_time = []
+        prediction_00, _, _ = lmsi_model(t-9//2, cur_t_tile_block_00.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_01, _, _ = lmsi_model(t-9//2, cur_t_tile_block_01.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_11, _, _ = lmsi_model(t-9//2, cur_t_tile_block_11.to(device), h_prev_time, c_prev_time, long_term_memory)
+
+
     # put on cpu and permute to channel last
+    # y00
+    y00 = prediction_00.cpu().data
+    y00 = y00.permute(0, 2, 3, 1).numpy()
+    y00 = y00[0, label_tile_height//2:, label_tile_width//2:]
+    # y01
+    y01 = prediction_01.cpu().data
+    y01 = y01.permute(0, 2, 3, 1).numpy()
+    y01 = y01[0, label_tile_height//2:, :label_tile_width//2]
+    # current prediction is its y10
+    y10 = cur_t_tile_label_pred[:label_tile_height//2, label_tile_width//2:]
+    # y11
     y11 = prediction_11.cpu().data
     y11 = y11.permute(0, 2, 3, 1).numpy()
-
     y11 = y11[0, :label_tile_height//2, :label_tile_width//2]
 
     # bilinear interpolate
@@ -262,43 +294,42 @@ def blend_top_right(i,
 
 
 # blend the bottom left part of the input tile
-def blend_bottom_left(i,
-                        device,
-                        lmsi_model,
-                        cur_t_image_block,
-                        cur_t_tile_label_pred,
-                        image_tile_height,
-                        image_tile_width,
-                        label_tile_height,
-                        label_tile_width,
-                        num_tile_column,
-                        target_dim):
+def blend_bottom_left(t,
+                      i,
+                      device,
+                      lmsi_model,
+                      cur_t_image_block,
+                      cur_t_tile_label_pred,
+                      image_tile_height,
+                      image_tile_width,
+                      label_tile_height,
+                      label_tile_width,
+                      num_tile_column,
+                      target_dim,
+                      long_term_memory,
+                      h_prev_time=None,
+                      c_prev_time=None):
 
     print('blending bottom left')
+    if long_term_memory:
+        if h_prev_time == None or c_prev_time == None:
+            raise Exception('h_prev_time and c_prev_time are required when testing using non-amnesia mode')
 
-    # construct data for its y00
+
     # cur_t_image_block has shape (16, time_span, 128, 128)
     # cur_t_tile_block_00 has shape (1, time_span, 128, 128)
     cur_t_tile_block_00 = torch.zeros(cur_t_image_block[0:1].shape)
+    cur_t_tile_block_10 = torch.zeros(cur_t_image_block[0:1].shape)
+    cur_t_tile_block_11 = torch.zeros(cur_t_image_block[0:1].shape)
+
+    # construct data for its y00
     # left half is the previous(left) tile's vertical central slice
     if i-1 >= 0:
         cur_t_tile_block_00[:, :, :, :image_tile_width//2] = cur_t_image_block[i-1:i, :, :, image_tile_width//4:image_tile_width*3//4]
     # right half is the current tile's vertical central slice
     cur_t_tile_block_00[:, :, :, image_tile_width//2:] = cur_t_image_block[i:i+1, :, :, image_tile_width//4:image_tile_width*3//4]
-    # get prediction y00
-    prediction_00 = lmsi_model(cur_t_tile_block_00.to(device))
-    # put on cpu and permute to channel last
-    y00 = prediction_00.cpu().data
-    y00 = y00.permute(0, 2, 3, 1).numpy()
-    y00 = y00[0, label_tile_height//2:, label_tile_width//2:]
-
-    # current prediction is its y01
-    y01 = cur_t_tile_label_pred[label_tile_height//2:, :label_tile_width//2]
 
     # construct data for its y10
-    # cur_t_image_block has shape (16, time_span, 128, 128)
-    # cur_t_tile_block_10 has shape (1, time_span, 128, 128)
-    cur_t_tile_block_10 = torch.zeros(cur_t_image_block[0:1].shape)
     # top left is the previous(left) tile's central part
     if i-1 >= 0:
         cur_t_tile_block_10[:, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i-1:i, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
@@ -310,24 +341,49 @@ def blend_bottom_left(i,
     # bottom right is the next-row tile's central part
     if i+num_tile_column < num_tile_column**2:
         cur_t_tile_block_10[:, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i+num_tile_column:i+num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
-    # get prediction y10
-    prediction_10 = lmsi_model(cur_t_tile_block_10.to(device))
-    # put on cpu and permute to channel last
-    y10 = prediction_10.cpu().data
-    y10 = y10.permute(0, 2, 3, 1).numpy()
-    y10 = y10[0, :label_tile_height//2, label_tile_width//2:]
 
     # construct data for its y11
-    # cur_t_image_block has shape (16, time_span, 128, 128)
-    # cur_t_tile_block_11 has shape (1, time_span, 128, 128)
-    cur_t_tile_block_11 = torch.zeros(cur_t_image_block[0:1].shape)
     # top half is the current tile's horizontal center slice
     cur_t_tile_block_11[:, :, :image_tile_height//2, :] = cur_t_image_block[i:i+1, :, image_tile_width//4:image_tile_width*3//4, :]
     # bottom half is the next-row tile's horizontal center slice
     if i+num_tile_column < num_tile_column**2:
         cur_t_tile_block_11[:, :, image_tile_height//2:, :] = cur_t_image_block[i+num_tile_column:i+num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, :]
-    # get prediction y11
-    prediction_11 = lmsi_model(cur_t_tile_block_11.to(device))
+
+
+    # get prediction for y00, y01, y10 and y11
+    if long_term_memory:
+        # train/validate
+        if t - 9//2 == 0:
+            h_prev_time = []
+            c_prev_time = []
+
+        h_prev_time = repackage_hidden(h_prev_time)
+        c_prev_time = repackage_hidden(c_prev_time)
+        prediction_00, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_00.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_10, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_10.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_11, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_11.to(device), h_prev_time, c_prev_time, long_term_memory)
+        h_prev_time = h_cur_time
+        c_prev_time = c_cur_time
+    else:
+        h_prev_time = []
+        c_prev_time = []
+        prediction_00, _, _ = lmsi_model(t-9//2, cur_t_tile_block_00.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_10, _, _ = lmsi_model(t-9//2, cur_t_tile_block_10.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_11, _, _ = lmsi_model(t-9//2, cur_t_tile_block_11.to(device), h_prev_time, c_prev_time, long_term_memory)
+
+    # put on cpu and permute to channel last
+    y00 = prediction_00.cpu().data
+    y00 = y00.permute(0, 2, 3, 1).numpy()
+    y00 = y00[0, label_tile_height//2:, label_tile_width//2:]
+
+    # current prediction is its y01
+    y01 = cur_t_tile_label_pred[label_tile_height//2:, :label_tile_width//2]
+
+    # put on cpu and permute to channel last
+    y10 = prediction_10.cpu().data
+    y10 = y10.permute(0, 2, 3, 1).numpy()
+    y10 = y10[0, :label_tile_height//2, label_tile_width//2:]
+
     # put on cpu and permute to channel last
     y11 = prediction_11.cpu().data
     y11 = y11.permute(0, 2, 3, 1).numpy()
@@ -348,63 +404,51 @@ def blend_bottom_left(i,
 
 
 # blend the bottom right part of the input tile
-def blend_bottom_right(i,
-                        device,
-                        lmsi_model,
-                        cur_t_image_block,
-                        cur_t_tile_label_pred,
-                        image_tile_height,
-                        image_tile_width,
-                        label_tile_height,
-                        label_tile_width,
-                        num_tile_column,
-                        target_dim):
+def blend_bottom_right(t,
+                       i,
+                       device,
+                       lmsi_model,
+                       cur_t_image_block,
+                       cur_t_tile_label_pred,
+                       image_tile_height,
+                       image_tile_width,
+                       label_tile_height,
+                       label_tile_width,
+                       num_tile_column,
+                       target_dim,
+                       long_term_memory,
+                       h_prev_time=None,
+                       c_prev_time=None):
 
     print('blending bottom right')
+    if long_term_memory:
+        if h_prev_time == None or c_prev_time == None:
+            raise Exception('h_prev_time and c_prev_time are required when testing using non-amnesia mode')
 
     # current prediction is its y00
     y00 = cur_t_tile_label_pred[label_tile_height//2:, label_tile_width//2:]
 
-    # construct data for its y01
     # cur_t_image_block has shape (16, time_span, 128, 128)
     # cur_t_tile_block_01 has shape (1, time_span, 128, 128)
     cur_t_tile_block_01 = torch.zeros(cur_t_image_block[0:1].shape)
+    cur_t_tile_block_10 = torch.zeros(cur_t_image_block[0:1].shape)
+    cur_t_tile_block_11 = torch.zeros(cur_t_image_block[0:1].shape)
+
+    # construct data for its y01
     # left half is the current tile's vertical center slice
     cur_t_tile_block_01[:, :, :, :image_tile_width//2] = cur_t_image_block[i:i+1, :, :, image_tile_height//4:image_tile_height*3//4]
     # right half is the next tile's vertical center slice
     if i+1 < num_tile_column**2:
         cur_t_tile_block_01[:, :, :, image_tile_width//2:] = cur_t_image_block[i+1:i+2, :, :, image_tile_height//4:image_tile_height*3//4]
 
-    # get prediction y01
-    prediction_01 = lmsi_model(cur_t_tile_block_01.to(device))
-    # put on cpu and permute to channel last
-    y01 = prediction_01.cpu().data
-    y01 = y01.permute(0, 2, 3, 1).numpy()
-
-    y01 = y01[0, label_tile_height//2:, :label_tile_width//2]
-
     # construct data for its y10
-    # cur_t_image_block has shape (16, time_span, 128, 128)
-    # cur_t_tile_block_10 has shape (1, time_span, 128, 128)
-    cur_t_tile_block_10 = torch.zeros(cur_t_image_block[0:1].shape)
     # top half is the current tile's horizontal center slice
     cur_t_tile_block_10[:, :, :image_tile_height//2, :] = cur_t_image_block[i:i+1, :, image_tile_height//4:image_tile_height*3//4, :]
     # bottom half is the next-row tile's horizontal center slice
     if i+num_tile_column < num_tile_column**2:
         cur_t_tile_block_10[:, :, image_tile_height//2:, :] = cur_t_image_block[i+num_tile_column:i+num_tile_column+1, :, image_tile_height//4:image_tile_height*3//4, :]
 
-    # get prediction y10
-    prediction_10 = lmsi_model(cur_t_tile_block_10.to(device))
-    # put on cpu and permute to channel last
-    y10 = prediction_10.cpu().data
-    y10 = y10.permute(0, 2, 3, 1).numpy()
-
-    y10 = y10[0, :label_tile_height//2, label_tile_width//2:]
-
     # construct data for its y11
-    # cur_t_image_block has shape (16, time_span, 128, 128)
-    # cur_t_tile_block_11 has shape (1, time_span, 128, 128)
-    cur_t_tile_block_11 = torch.zeros(cur_t_image_block[0:1].shape)
     # top left is the current tile's central part
     cur_t_tile_block_11[:, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i:i+1, :, image_tile_height//4:image_tile_height*3//4, image_tile_height//4:image_tile_height*3//4]
     # top right is the next tile's central part
@@ -417,8 +461,38 @@ def blend_bottom_right(i,
     if i+num_tile_column+1 < num_tile_column**2:
         cur_t_tile_block_11[:, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i+num_tile_column+1:i+num_tile_column+2, :, image_tile_height//4:image_tile_height*3//4, image_tile_height//4:image_tile_height*3//4]
 
-    # get prediction y11
-    prediction_11 = lmsi_model(cur_t_tile_block_11.to(device))
+
+    # get prediction for y01, y10 and y11
+    if long_term_memory:
+        # train/validate
+        if t - 9//2 == 0:
+            h_prev_time = []
+            c_prev_time = []
+
+        h_prev_time = repackage_hidden(h_prev_time)
+        c_prev_time = repackage_hidden(c_prev_time)
+        prediction_01, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_01.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_10, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_10.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_11, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_11.to(device), h_prev_time, c_prev_time, long_term_memory)
+        h_prev_time = h_cur_time
+        c_prev_time = c_cur_time
+    else:
+        h_prev_time = []
+        c_prev_time = []
+        prediction_01, _, _ = lmsi_model(t-9//2, cur_t_tile_block_01.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_10, _, _ = lmsi_model(t-9//2, cur_t_tile_block_10.to(device), h_prev_time, c_prev_time, long_term_memory)
+        prediction_11, _, _ = lmsi_model(t-9//2, cur_t_tile_block_11.to(device), h_prev_time, c_prev_time, long_term_memory)
+
+    # put on cpu and permute to channel last
+    y01 = prediction_01.cpu().data
+    y01 = y01.permute(0, 2, 3, 1).numpy()
+    y01 = y01[0, label_tile_height//2:, :label_tile_width//2]
+
+    # put on cpu and permute to channel last
+    y10 = prediction_10.cpu().data
+    y10 = y10.permute(0, 2, 3, 1).numpy()
+    y10 = y10[0, :label_tile_height//2, label_tile_width//2:]
+
     # put on cpu and permute to channel last
     y11 = prediction_11.cpu().data
     y11 = y11.permute(0, 2, 3, 1).numpy()
@@ -629,7 +703,8 @@ def run_test(network_model,
                             cur_t_tile_label_pred_blend = copy.deepcopy(cur_t_tile_label_pred)
                             # blend all four parts
                             # blend top left
-                            cur_t_tile_label_pred_blend_00 = blend_top_left(i,
+                            cur_t_tile_label_pred_blend_00 = blend_top_left(t,
+                                                                            i,
                                                                             device,
                                                                             lmsi_model,
                                                                             cur_t_image_block,
@@ -639,10 +714,14 @@ def run_test(network_model,
                                                                             label_tile_height,
                                                                             label_tile_width,
                                                                             num_tile_column,
-                                                                            target_dim)
+                                                                            target_dim,
+                                                                            long_term_memory,
+                                                                            h_prev_time,
+                                                                            c_prev_time)
 
                             # blend top right
-                            cur_t_tile_label_pred_blend_01 = blend_top_right(i,
+                            cur_t_tile_label_pred_blend_01 = blend_top_right(t,
+                                                                            i,
                                                                             device,
                                                                             lmsi_model,
                                                                             cur_t_image_block,
@@ -652,10 +731,14 @@ def run_test(network_model,
                                                                             label_tile_height,
                                                                             label_tile_width,
                                                                             num_tile_column,
-                                                                            target_dim)
+                                                                            target_dim,
+                                                                            long_term_memory,
+                                                                            h_prev_time,
+                                                                            c_prev_time)
 
                             # blend bottom left
-                            cur_t_tile_label_pred_blend_10 = blend_bottom_left(i,
+                            cur_t_tile_label_pred_blend_10 = blend_bottom_left(t,
+                                                                               i,
                                                                                 device,
                                                                                 lmsi_model,
                                                                                 cur_t_image_block,
@@ -665,10 +748,14 @@ def run_test(network_model,
                                                                                 label_tile_height,
                                                                                 label_tile_width,
                                                                                 num_tile_column,
-                                                                                target_dim)
+                                                                                target_dim,
+                                                                                long_term_memory,
+                                                                                h_prev_time,
+                                                                                c_prev_time)
 
                             # blend bottom right
-                            cur_t_tile_label_pred_blend_11 = blend_bottom_right(i,
+                            cur_t_tile_label_pred_blend_11 = blend_bottom_right(t,
+                                                                                i,
                                                                                 device,
                                                                                 lmsi_model,
                                                                                 cur_t_image_block,
@@ -678,7 +765,10 @@ def run_test(network_model,
                                                                                 label_tile_height,
                                                                                 label_tile_width,
                                                                                 num_tile_column,
-                                                                                target_dim)
+                                                                                target_dim,
+                                                                                long_term_memory,
+                                                                                h_prev_time,
+                                                                                c_prev_time)
 
                             # replace with the blended result
                             cur_t_tile_label_pred_blend[:label_tile_height//2, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_00
@@ -1825,6 +1915,7 @@ def main():
         # useful arguments in this mode
         target_dim = 2
         loss = args.loss[0]
+        long_term_memory = args.long_term_memory
         final_size = 256
 
         # sanity check to make sure network model and data type are compatible
