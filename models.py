@@ -3,6 +3,7 @@
 
 import os
 import time
+import math
 import torch
 import itertools
 import numpy as np
@@ -22,6 +23,8 @@ class Memory_PIVnet(torch.nn.Module):
         self.time_span = kwargs['time_span']
         # target (flow) dimension
         self.target_dim = kwargs['target_dim']
+        # GPU info
+        self.device = kwargs['device']
 
         # Multigrid Memory Network
         class MemoryNetwork(torch.nn.Module):
@@ -662,7 +665,7 @@ class Memory_PIVnet(torch.nn.Module):
         #                                   out_channels=self.target_dim)
         # else:
         self.estimate_flow = EstimateFlow(num_levels=4,
-                                        in_channels=all_hidden_channels[-1],
+                                        in_channels=all_hidden_channels[-1]+all_hidden_channels[-1]//2,
                                         feat_channels=256,
                                         out_channels=self.target_dim)
 
@@ -694,6 +697,42 @@ class Memory_PIVnet(torch.nn.Module):
 
         # final time stamp's h and c are used for flow prediction
         final_h = h_cur_time[-1]
+
+        # append positional encoding to all the final hidden states
+        def PE_2d(batch_size, d_model, height, width):
+            """
+            :param batch_size: tensor batch size
+            :param d_model: dimension of the model
+            :param height: height of the positions
+            :param width: width of the positions
+            :return: d_model*height*width position matrix
+            """
+            if d_model % 4 != 0:
+                raise ValueError(f'Cannot use sin/cos positional encoding with odd dimension {d_model}')
+
+            pe = torch.zeros(batch_size, d_model, height, width)
+            # Each dimension use half of d_model
+            d_model = int(d_model / 2)
+            div_term = torch.exp(torch.arange(0., d_model, 2) *
+                                -(math.log(10000.0) / d_model))
+            pos_w = torch.arange(0., width).unsqueeze(1)
+            pos_h = torch.arange(0., height).unsqueeze(1)
+            pe[:, 0:d_model:2, :, :] = torch.sin(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
+            pe[:, 1:d_model:2, :, :] = torch.cos(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
+            pe[:, d_model::2, :, :] = torch.sin(pos_h * div_term).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)
+            pe[:, d_model + 1::2, :, :] = torch.cos(pos_h * div_term).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)
+
+            return pe
+
+        for i in range(len(final_h)):
+            cur_h = final_h[i]
+            batch_size = cur_h.shape[0]
+            d_model = cur_h.shape[1] // 2
+            height = cur_h.shape[2]
+            width = cur_h.shape[3]
+
+            cur_h_pe = PE_2d(batch_size, d_model, height, width).to(self.device)
+            final_h[i] = torch.cat((final_h[i], cur_h_pe), dim=1)
 
         # flow estimation
         pred_flow = self.estimate_flow(final_h)

@@ -1629,6 +1629,7 @@ def main():
                     'num_channels':               num_channels,
                     'time_span':                  time_span,
                     'target_dim':                 2,
+                    'device':                     device
                  }
 
         # model, optimizer and loss
