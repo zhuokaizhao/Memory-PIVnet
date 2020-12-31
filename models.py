@@ -665,6 +665,7 @@ class Memory_PIVnet(torch.nn.Module):
         #                                   out_channels=self.target_dim)
         # else:
         self.estimate_flow = EstimateFlow(num_levels=4,
+                                        # in_channels=all_hidden_channels[-1],
                                         in_channels=all_hidden_channels[-1]+all_hidden_channels[-1]//2,
                                         feat_channels=256,
                                         out_channels=self.target_dim)

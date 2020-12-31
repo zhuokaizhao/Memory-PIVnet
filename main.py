@@ -553,7 +553,8 @@ def run_test(network_model,
                     'time_span':                  time_span,
                     'target_dim':                 target_dim,
                     'mode':                       'test',
-                    'N':                          4
+                    'N':                          4,
+                    'device':                     device
                 }
 
         # model, optimizer and loss
