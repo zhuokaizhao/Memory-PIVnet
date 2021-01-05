@@ -648,6 +648,122 @@ def prepare_patches(t,
 
     return all_patches_pred, h_cur_time, c_cur_time
 
+def bilinear_interpolate_blend(h_patch,
+                               w_patch,
+                               patch_index,
+                               num_tile_column,
+                               all_patches_pred,
+                               label_tile_height,
+                               label_tile_width):
+
+    # current tile to be blended
+    cur_tile_pred = all_patches_pred[patch_index]
+    cur_tile_pred_blend = np.zeros(cur_tile_pred.shape)
+
+    # all the nine patches that are needed for blending
+    index_00 = (h_patch - 1) * (2*num_tile_column+1) + w_patch - 1
+    index_01 = (h_patch - 1) * (2*num_tile_column+1) + w_patch
+    index_02 = (h_patch - 1) * (2*num_tile_column+1) + w_patch + 1
+    index_10 = h_patch * (2*num_tile_column+1) + w_patch - 1
+    index_11 = h_patch * (2*num_tile_column+1) + w_patch
+    index_12 = h_patch * (2*num_tile_column+1) + w_patch + 1
+    index_20 = (h_patch + 1) * (2*num_tile_column+1) + w_patch - 1
+    index_21 = (h_patch + 1) * (2*num_tile_column+1) + w_patch
+    index_22 = (h_patch + 1) * (2*num_tile_column+1) + w_patch + 1
+
+    # blend top left section of the tile
+    y00 = all_patches_pred[index_00, label_tile_height//2:, label_tile_width//2:, :]
+    y01 = all_patches_pred[index_01, label_tile_height//2:, :label_tile_width//2, :]
+    y10 = all_patches_pred[index_10, :label_tile_height//2, label_tile_width//2:, :]
+    y11 = all_patches_pred[index_11, :label_tile_height//2, :label_tile_width//2, :]
+
+    if y00.shape != y01.shape or y01.shape != y10.shape or y10.shape != y11.shape:
+        raise Exception('Unmatched patch shapes when blending top left section')
+
+    blend_height = y00.shape[0]
+    blend_width = y00.shape[1]
+    target_dim = y00.shape[2]
+    blended_topleft = np.zeros((blend_height, blend_width, target_dim))
+
+    for s in range(blend_height):
+        for r in range(blend_width):
+
+            s_uni = s / (blend_height-1)
+            r_uni = r / (blend_width-1)
+
+            blended_topleft[s, r] = (1-r_uni)*(1-s_uni)*y00[s, r] + r_uni*(1-s_uni)*y01[s, r] \
+                                        + (1-r_uni)*s_uni*y10[s, r] + r_uni*s_uni*y11[s, r]
+
+    cur_tile_pred_blend[:label_tile_height//2, :label_tile_width//2, :] = blended_topleft
+
+    # blend top right section of the tile
+    y00 = all_patches_pred[index_01, label_tile_height//2:, label_tile_width//2:, :]
+    y01 = all_patches_pred[index_02, label_tile_height//2:, :label_tile_width//2, :]
+    y10 = all_patches_pred[index_11, :label_tile_height//2, label_tile_width//2:, :]
+    y11 = all_patches_pred[index_12, :label_tile_height//2, :label_tile_width//2, :]
+
+    if y00.shape != y01.shape or y01.shape != y10.shape or y10.shape != y11.shape:
+        raise Exception('Unmatched patch shapes when blending top right section')
+
+    blended_topright = np.zeros((blend_height, blend_width, target_dim))
+
+    for s in range(blend_height):
+        for r in range(blend_width):
+
+            s_uni = s / (blend_height-1)
+            r_uni = r / (blend_width-1)
+
+            blended_topright[s, r] = (1-r_uni)*(1-s_uni)*y00[s, r] + r_uni*(1-s_uni)*y01[s, r] \
+                                        + (1-r_uni)*s_uni*y10[s, r] + r_uni*s_uni*y11[s, r]
+
+    cur_tile_pred_blend[:label_tile_height//2, label_tile_width//2:, :] = blended_topright
+
+    # blend bottom left section of the tile
+    y00 = all_patches_pred[index_10, label_tile_height//2:, label_tile_width//2:, :]
+    y01 = all_patches_pred[index_11, label_tile_height//2:, :label_tile_width//2, :]
+    y10 = all_patches_pred[index_20, :label_tile_height//2, label_tile_width//2:, :]
+    y11 = all_patches_pred[index_21, :label_tile_height//2, :label_tile_width//2, :]
+
+    if y00.shape != y01.shape or y01.shape != y10.shape or y10.shape != y11.shape:
+        raise Exception('Unmatched patch shapes when blending top right section')
+
+    blended_bottomleft = np.zeros((blend_height, blend_width, target_dim))
+
+    for s in range(blend_height):
+        for r in range(blend_width):
+
+            s_uni = s / (blend_height-1)
+            r_uni = r / (blend_width-1)
+
+            blended_bottomleft[s, r] = (1-r_uni)*(1-s_uni)*y00[s, r] + r_uni*(1-s_uni)*y01[s, r] \
+                                        + (1-r_uni)*s_uni*y10[s, r] + r_uni*s_uni*y11[s, r]
+
+    cur_tile_pred_blend[label_tile_height//2:, :label_tile_width//2, :] = blended_bottomleft
+
+    # blend bottom right section of the tile
+    y00 = all_patches_pred[index_11, label_tile_height//2:, label_tile_width//2:, :]
+    y01 = all_patches_pred[index_12, label_tile_height//2:, :label_tile_width//2, :]
+    y10 = all_patches_pred[index_21, :label_tile_height//2, label_tile_width//2:, :]
+    y11 = all_patches_pred[index_22, :label_tile_height//2, :label_tile_width//2, :]
+
+    if y00.shape != y01.shape or y01.shape != y10.shape or y10.shape != y11.shape:
+        raise Exception('Unmatched patch shapes when blending top right section')
+
+    blended_bottomright = np.zeros((blend_height, blend_width, target_dim))
+
+    for s in range(blend_height):
+        for r in range(blend_width):
+
+            s_uni = s / (blend_height-1)
+            r_uni = r / (blend_width-1)
+
+            blended_bottomright[s, r] = (1-r_uni)*(1-s_uni)*y00[s, r] + r_uni*(1-s_uni)*y01[s, r] \
+                                        + (1-r_uni)*s_uni*y10[s, r] + r_uni*s_uni*y11[s, r]
+
+    cur_tile_pred_blend[label_tile_height//2:, label_tile_width//2:, :] = blended_bottomright
+
+    return cur_tile_pred_blend
+
 
 # helper function that takes the new-format data and then run inference
 # final size is the full image size
@@ -813,10 +929,11 @@ def run_test(network_model,
                         h_prev_time = h_cur_time
                         c_prev_time = c_cur_time
 
-                    # take the original parts
+                    # stitch to get the final results
                     for i in range(num_tiles_per_image):
                         h = i // num_tile_column
                         w = i % num_tile_column
+
                         # stitch the test image
                         cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
                                                 w*label_tile_width:(w+1)*label_tile_width,
@@ -825,22 +942,36 @@ def run_test(network_model,
                                                                         image_tile_height//4:image_tile_height//4*3,
                                                                         image_tile_width//4:image_tile_width//4*3,
                                                                         time_span//2:time_span//2+1]
+
                         # stitch the ground truth
                         cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
                         cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
                                                     w*label_tile_width:(w+1)*label_tile_width,
                                                     :] \
                                 = cur_t_tile_label_true
+
                         # stitch the unblended prediction
                         h_patch = 2*h + 1
                         w_patch = 2*w + 1
                         patch_index = h_patch * (2*num_tile_column+1) + w_patch
+                        cur_t_tile_label_pred = all_patches_pred[patch_index]
                         cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
                                                   w*label_tile_width:(w+1)*label_tile_width,
                                                   :] \
-                                = all_patches_pred[patch_index]
+                                = cur_t_tile_label_pred
 
-                    # blend the entire image
+                        # bilinear interpolate blend the current tile
+                        cur_t_tile_label_pred_blend = bilinear_interpolate_blend(h_patch,
+                                                                                    w_patch,
+                                                                                    patch_index,
+                                                                                    num_tile_column,
+                                                                                    all_patches_pred,
+                                                                                    label_tile_height,
+                                                                                    label_tile_width)
+                        cur_t_stitched_label_pred_blend[h*label_tile_height:(h+1)*label_tile_height,
+                                                        w*label_tile_width:(w+1)*label_tile_width,
+                                                        :] \
+                                        = cur_t_tile_label_pred_blend
 
                 else:
                     # loop through all the tiles
@@ -1041,7 +1172,7 @@ def run_test(network_model,
                 pred_error_unblend = np.sqrt((cur_t_stitched_label_pred[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
                                                 + (cur_t_stitched_label_pred[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
 
-                if blend:
+                if blend or blend_new:
                     if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
                         loss_blend = loss_module(torch.from_numpy(cur_t_stitched_label_pred_blend), torch.from_numpy(cur_t_stitched_label_true))
                         if loss == 'RMSE':
@@ -1139,7 +1270,7 @@ def run_test(network_model,
                     plot.visualize_AEE(pred_error_unblend, aee_path)
 
                     # same kind of plot for blended predictions
-                    if blend:
+                    if blend or blend_new:
                         # prediction visualization
                         cur_t_flow_pred_blend, _ = plot.visualize_flow(cur_t_stitched_label_pred_blend, max_vel=max_vel)
                         cur_t_flow_pred_blend = Image.fromarray(cur_t_flow_pred_blend)
@@ -1192,7 +1323,7 @@ def run_test(network_model,
             loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.svg')
             fig.savefig(loss_curve_path, bbox_inches='tight')
 
-            if blend:
+            if blend or blend_new:
                 min_loss_blend = np.min(all_losses_blend)
                 min_loss_index_blend = np.where(all_losses_blend == min_loss_blend)
                 avg_loss_blend = np.mean(all_losses_blend)
@@ -2189,6 +2320,7 @@ def main():
         if data_type == 'multi-frame' or data_type == 'image-pair-tiled' or data_type == 'one-sided':
             # MHD 25, Isotropic 41
             print(f'Testing from t = {start_t} to {end_t} (both side inclusive)')
+            start = time.time()
 
             run_test(network_model,
                     all_test_image_sequences,
@@ -2210,7 +2342,8 @@ def main():
                     draw_normal=True,
                     draw_glyph=False)
 
-            print(f'\nModel inference on image [{start_t}:{end_t}] completed\n')
+            end = time.time()
+            print(f'\nModel inference on image [{start_t}:{end_t}] completed, time cost: {end-start} seconds\n')
 
         elif data_type == 'image-pair':
             with torch.no_grad():
