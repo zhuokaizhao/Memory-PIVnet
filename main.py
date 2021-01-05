@@ -511,6 +511,142 @@ def blend_bottom_right(t,
 
     return cur_t_tile_label_pred_blend_11
 
+# prepare all the patches for blending and predict with model
+def prepare_patches(t,
+                    lmsi_model,
+                    device,
+                    final_size,
+                    cur_t_image_block,
+                    label_tile_height,
+                    label_tile_width,
+                    target_dim,
+                    long_term_memory,
+                    h_prev_time=None,
+                    c_prev_time=None):
+
+    # number of tiles in rows and colume
+    # cur_t_image_block (padded images) has shape (16, time_span, 128, 128)
+    num_tile_per_image = cur_t_image_block.shape[0]
+    time_span = cur_t_image_block.shape[1]
+    image_tile_height = cur_t_image_block.shape[2]
+    image_tile_width = cur_t_image_block.shape[3]
+
+    num_tile_row = final_size // label_tile_height
+    num_tile_column = final_size // label_tile_width
+
+    if num_tile_row * num_tile_column != num_tile_per_image:
+        raise Exception(f'tile numbers mismatch')
+
+    # the number of patches needed
+    num_patch_row = 2*num_tile_row + 1
+    num_patch_column = 2*num_tile_column + 1
+    num_patch_per_image = num_patch_row * num_patch_column
+
+    # distance between two adjacent patches
+    patch_dist_height = label_tile_height // 2
+    patch_dist_width = label_tile_width // 2
+
+    all_test_patches = np.zeros((num_patch_per_image, time_span, image_tile_height, image_tile_width), dtype=np.float32)
+
+    # construct the patches
+    for i in range(num_patch_per_image):
+        h = i // num_patch_column
+        w = i % num_patch_column
+        last_boundary = False
+
+        if h == num_patch_row-1 or w == num_patch_column-1:
+            last_boundary = True
+
+        if not last_boundary:
+            # determine the corresponding tile h and w
+            # eg, when h = 3, w = 2, it corresponds to tile (1, 1)
+            h_tile = h // 2
+            w_tile = w // 2
+            i_tile = h_tile * num_tile_column + w_tile
+
+            # determine the kinds of patches
+            # row and column both even
+            # for patches (h, w) = (0, 0), (2, 0) etc
+            if h % 2 == 0 and w % 2 == 0:
+                # top left is the previous-row previous(left) tile's center part
+                if i_tile-num_tile_column-1 >= 0:
+                    all_test_patches[i:i+1, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i_tile-num_tile_column-1:i_tile-num_tile_column, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+                # top right is the previous-row tile's center part
+                if i_tile-num_tile_column >= 0:
+                    all_test_patches[i:i+1, :, :image_tile_height//2, image_tile_width//2:] = cur_t_image_block[i_tile-num_tile_column:i_tile-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+                # bottom left is the previous tile's center part
+                if i_tile-1 >= 0:
+                    all_test_patches[i:i+1, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i_tile-1:i_tile, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+                # bottom right is the current tile's center part
+                all_test_patches[i:i+1, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+
+            # for patches (h, w) = (0, 1), (2, 3) etc
+            elif h % 2 == 0 and w % 2 != 0:
+                # top half is the previous-row tile's horizontal central slice
+                if i_tile-num_tile_column >= 0:
+                    all_test_patches[i:i+1, :, :image_tile_height//2, :] = cur_t_image_block[i_tile-num_tile_column:i_tile-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, :]
+                # bottom half is the current tile's horizontal central slice
+                all_test_patches[i:i+1, :, image_tile_height//2:, :] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, :]
+
+            # for patches (h, w) = (1, 0), (3, 2) etc
+            elif h % 2 != 0 and w % 2 == 0:
+                # left half is the previous tile's vertical central slice
+                if i_tile-1 >= 0:
+                    all_test_patches[i:i+1, :, :, :image_tile_width//2] = cur_t_image_block[i_tile-1:i_tile, :, :, image_tile_width//4:image_tile_width*3//4]
+                # right half is the current tile's vertical central slice
+                all_test_patches[i:i+1, :, :, image_tile_width//2:] = cur_t_image_block[i_tile:i_tile+1, :, :, image_tile_width//4:image_tile_width*3//4]
+
+            # for patches (h, w) = (1, 1), (3, 3) etc
+            elif h % 2 != 0 and w % 2 != 0:
+                # it is itself
+                all_test_patches[i:i+1, :, :, :] = cur_t_image_block[i_tile:i_tile+1, :, :, :]
+        else:
+            # last one such as h=8 or w=8
+            if h == num_patch_row-1:
+                h_tile = (h-1) // 2
+            else:
+                h_tile = h // 2
+            if w == num_patch_column-1:
+                w_tile = (w-1) // 2
+            else:
+                w_tile = w // 2
+            i_tile = h_tile * num_tile_column + w_tile
+
+            # top left is the previous-row tile's center part
+            if i_tile-num_tile_column >= 0:
+                all_test_patches[i:i+1, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i_tile-num_tile_column:i_tile-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+            # top right is the previous-row next tile's center part
+            if i_tile-num_tile_column+1 >= 0:
+                all_test_patches[i:i+1, :, :image_tile_height//2, image_tile_width//2:] = cur_t_image_block[i_tile-num_tile_column+1:i_tile-num_tile_column+2, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+            # bottom left is the current tile's center part
+            all_test_patches[i:i+1, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+            # bottom right is the next tile's center part
+            if i_tile+1 < num_tile_column**2:
+                all_test_patches[i:i+1, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i_tile+1:i_tile+2, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+
+    # get predictions from these patches
+    all_patches_pred = np.zeros((num_patch_per_image, label_tile_height, label_tile_width, target_dim), dtype=np.float32)
+    for i in range(len(all_test_patches)):
+        # print(f'Inference patch {i}')
+        cur_test_patch = torch.from_numpy(all_test_patches[i:i+1]).to(device)
+
+        if long_term_memory:
+            if t - 9//2 == 0:
+                h_prev_time = []
+                c_prev_time = []
+        else:
+            h_prev_time = []
+            c_prev_time = []
+
+        prediction, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_test_patch, h_prev_time, c_prev_time, long_term_memory)
+
+        # put on cpu and permute to channel last
+        cur_patch_pred = prediction.cpu().data
+        cur_patch_pred = cur_patch_pred.permute(0, 2, 3, 1).numpy()
+        all_patches_pred[i] = cur_patch_pred[0]
+
+    return all_patches_pred, h_cur_time, c_cur_time
+
 
 # helper function that takes the new-format data and then run inference
 # final size is the full image size
@@ -531,6 +667,7 @@ def run_test(network_model,
             device,
             long_term_memory,
             blend=False,
+            blend_new=False,
             draw_normal=True,
             draw_glyph=False):
 
@@ -639,21 +776,13 @@ def run_test(network_model,
                                                         final_size,
                                                         target_dim))
 
-                if blend:
+                if blend or blend_new:
                     cur_t_stitched_label_pred_blend = np.zeros((final_size,
                                                                 final_size,
                                                                 target_dim))
 
-                # loop through all the tiles
-                for i in range(num_tiles_per_image):
-                    print(f'\nInferencing tile {i}')
-                    # cur_t_tile_block has shape (1, time_span, 128, 128)
-                    cur_t_tile_block = cur_t_image_block[i:i+1].to(device)
-                    # cur_t_tile_label has shape (64, 64, target_dim)
-                    cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
-
+                if blend_new:
                     # run inference
-                    # prediction = lmsi_model(cur_t_tile_block)
                     if long_term_memory:
                         # train/validate
                         if t - 9//2 == 0:
@@ -662,100 +791,110 @@ def run_test(network_model,
 
                         h_prev_time = repackage_hidden(h_prev_time)
                         c_prev_time = repackage_hidden(c_prev_time)
-                        prediction, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
-                        h_prev_time = h_cur_time
-                        c_prev_time = c_cur_time
                     else:
                         h_prev_time = []
                         c_prev_time = []
-                        prediction, _, _ = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
 
-                    # put on cpu and permute to channel last
-                    cur_t_tile_label_pred = prediction.cpu().data
-                    cur_t_tile_label_pred = cur_t_tile_label_pred.permute(0, 2, 3, 1).numpy()
-                    cur_t_tile_label_pred = cur_t_tile_label_pred[0]
-
-                    # save the un-blend result
-                    h = i // num_tile_column
-                    w = i % num_tile_column
-
-                    # take the center part if padded data
-                    if network_model == 'memory-piv-net' or network_model == 'memory-piv-net-ip-tiled':
-                        cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
-                                            w*label_tile_width:(w+1)*label_tile_width,
-                                            :] \
-                            = cur_t_tile_block.permute(0, 2, 3, 1)[0,
-                                                                image_tile_height//4:image_tile_height//4*3,
-                                                                image_tile_width//4:image_tile_width//4*3,
-                                                                time_span//2:time_span//2+1].cpu().numpy()
-
-                        cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
-                                                w*label_tile_width:(w+1)*label_tile_width,
-                                                :] \
-                            = cur_t_tile_label_true
-
-                        cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
-                                                w*label_tile_width:(w+1)*label_tile_width,
-                                                :] \
-                            = cur_t_tile_label_pred
-
-                        # if blending is needed
-                        if blend:
-                            cur_t_tile_label_pred_blend = copy.deepcopy(cur_t_tile_label_pred)
-                            # blend all four parts
-                            # blend top left
-                            cur_t_tile_label_pred_blend_00 = blend_top_left(t,
-                                                                            i,
-                                                                            device,
-                                                                            lmsi_model,
-                                                                            cur_t_image_block,
-                                                                            cur_t_tile_label_pred,
-                                                                            image_tile_height,
-                                                                            image_tile_width,
-                                                                            label_tile_height,
-                                                                            label_tile_width,
-                                                                            num_tile_column,
-                                                                            target_dim,
-                                                                            long_term_memory,
-                                                                            h_prev_time,
-                                                                            c_prev_time)
-
-                            # blend top right
-                            cur_t_tile_label_pred_blend_01 = blend_top_right(t,
-                                                                            i,
-                                                                            device,
-                                                                            lmsi_model,
-                                                                            cur_t_image_block,
-                                                                            cur_t_tile_label_pred,
-                                                                            image_tile_height,
-                                                                            image_tile_width,
-                                                                            label_tile_height,
-                                                                            label_tile_width,
-                                                                            num_tile_column,
-                                                                            target_dim,
-                                                                            long_term_memory,
-                                                                            h_prev_time,
-                                                                            c_prev_time)
-
-                            # blend bottom left
-                            cur_t_tile_label_pred_blend_10 = blend_bottom_left(t,
-                                                                               i,
-                                                                                device,
+                    # prepare all the patches for performing the blend
+                    all_patches_pred, h_cur_time, c_cur_time = prepare_patches(t,
                                                                                 lmsi_model,
+                                                                                device,
+                                                                                final_size,
                                                                                 cur_t_image_block,
-                                                                                cur_t_tile_label_pred,
-                                                                                image_tile_height,
-                                                                                image_tile_width,
                                                                                 label_tile_height,
                                                                                 label_tile_width,
-                                                                                num_tile_column,
                                                                                 target_dim,
                                                                                 long_term_memory,
                                                                                 h_prev_time,
                                                                                 c_prev_time)
 
-                            # blend bottom right
-                            cur_t_tile_label_pred_blend_11 = blend_bottom_right(t,
+                    if long_term_memory:
+                        h_prev_time = h_cur_time
+                        c_prev_time = c_cur_time
+
+                    # take the original parts
+                    for i in range(num_tiles_per_image):
+                        h = i // num_tile_column
+                        w = i % num_tile_column
+                        cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
+                        cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
+                                                    w*label_tile_width:(w+1)*label_tile_width,
+                                                    :] \
+                                = cur_t_tile_label_true
+
+                        h_patch = 2*h + 1
+                        w_patch = 2*w + 1
+                        patch_index = h_patch * (2*num_tile_column+1) + w_patch
+
+                        cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
+                                                  w*label_tile_width:(w+1)*label_tile_width,
+                                                  :] \
+                                = all_patches_pred[patch_index]
+
+                    # blend the entire image
+
+                else:
+                    # loop through all the tiles
+                    for i in range(num_tiles_per_image):
+                        print(f'\nInferencing tile {i}')
+                        # cur_t_tile_block has shape (1, time_span, 128, 128)
+                        cur_t_tile_block = cur_t_image_block[i:i+1].to(device)
+                        # cur_t_tile_label has shape (64, 64, target_dim)
+                        cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
+
+                        # run inference
+                        # prediction = lmsi_model(cur_t_tile_block)
+                        if long_term_memory:
+                            # train/validate
+                            if t - 9//2 == 0:
+                                h_prev_time = []
+                                c_prev_time = []
+
+                            h_prev_time = repackage_hidden(h_prev_time)
+                            c_prev_time = repackage_hidden(c_prev_time)
+                            prediction, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
+                            h_prev_time = h_cur_time
+                            c_prev_time = c_cur_time
+                        else:
+                            h_prev_time = []
+                            c_prev_time = []
+                            prediction, _, _ = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
+
+                        # put on cpu and permute to channel last
+                        cur_t_tile_label_pred = prediction.cpu().data
+                        cur_t_tile_label_pred = cur_t_tile_label_pred.permute(0, 2, 3, 1).numpy()
+                        cur_t_tile_label_pred = cur_t_tile_label_pred[0]
+
+                        # save the un-blend result
+                        h = i // num_tile_column
+                        w = i % num_tile_column
+
+                        # take the center part if padded data
+                        if network_model == 'memory-piv-net' or network_model == 'memory-piv-net-ip-tiled':
+                            cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
+                                                w*label_tile_width:(w+1)*label_tile_width,
+                                                :] \
+                                = cur_t_tile_block.permute(0, 2, 3, 1)[0,
+                                                                    image_tile_height//4:image_tile_height//4*3,
+                                                                    image_tile_width//4:image_tile_width//4*3,
+                                                                    time_span//2:time_span//2+1].cpu().numpy()
+
+                            cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
+                                                    w*label_tile_width:(w+1)*label_tile_width,
+                                                    :] \
+                                = cur_t_tile_label_true
+
+                            cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
+                                                    w*label_tile_width:(w+1)*label_tile_width,
+                                                    :] \
+                                = cur_t_tile_label_pred
+
+                            # if blending is needed
+                            if blend:
+                                cur_t_tile_label_pred_blend = copy.deepcopy(cur_t_tile_label_pred)
+                                # blend all four parts
+                                # blend top left
+                                cur_t_tile_label_pred_blend_00 = blend_top_left(t,
                                                                                 i,
                                                                                 device,
                                                                                 lmsi_model,
@@ -771,37 +910,88 @@ def run_test(network_model,
                                                                                 h_prev_time,
                                                                                 c_prev_time)
 
-                            # replace with the blended result
-                            cur_t_tile_label_pred_blend[:label_tile_height//2, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_00
-                            cur_t_tile_label_pred_blend[:label_tile_height//2, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_01
-                            cur_t_tile_label_pred_blend[label_tile_height//2:, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_10
-                            cur_t_tile_label_pred_blend[label_tile_height//2:, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_11
+                                # blend top right
+                                cur_t_tile_label_pred_blend_01 = blend_top_right(t,
+                                                                                i,
+                                                                                device,
+                                                                                lmsi_model,
+                                                                                cur_t_image_block,
+                                                                                cur_t_tile_label_pred,
+                                                                                image_tile_height,
+                                                                                image_tile_width,
+                                                                                label_tile_height,
+                                                                                label_tile_width,
+                                                                                num_tile_column,
+                                                                                target_dim,
+                                                                                long_term_memory,
+                                                                                h_prev_time,
+                                                                                c_prev_time)
 
-                            # stitch the blended tiles
-                            cur_t_stitched_label_pred_blend[h*label_tile_height:(h+1)*label_tile_height,
-                                                            w*label_tile_width:(w+1)*label_tile_width,
-                                                            :] \
-                                = cur_t_tile_label_pred_blend
-                    elif network_model == 'memory-piv-net-no-neighbor':
-                        cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
-                                            w*label_tile_width:(w+1)*label_tile_width,
-                                            :] \
-                            = cur_t_tile_block.permute(0, 2, 3, 1)[0,:, :, time_span//2:time_span//2+1].cpu().numpy()
+                                # blend bottom left
+                                cur_t_tile_label_pred_blend_10 = blend_bottom_left(t,
+                                                                                i,
+                                                                                    device,
+                                                                                    lmsi_model,
+                                                                                    cur_t_image_block,
+                                                                                    cur_t_tile_label_pred,
+                                                                                    image_tile_height,
+                                                                                    image_tile_width,
+                                                                                    label_tile_height,
+                                                                                    label_tile_width,
+                                                                                    num_tile_column,
+                                                                                    target_dim,
+                                                                                    long_term_memory,
+                                                                                    h_prev_time,
+                                                                                    c_prev_time)
 
-                        cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
+                                # blend bottom right
+                                cur_t_tile_label_pred_blend_11 = blend_bottom_right(t,
+                                                                                    i,
+                                                                                    device,
+                                                                                    lmsi_model,
+                                                                                    cur_t_image_block,
+                                                                                    cur_t_tile_label_pred,
+                                                                                    image_tile_height,
+                                                                                    image_tile_width,
+                                                                                    label_tile_height,
+                                                                                    label_tile_width,
+                                                                                    num_tile_column,
+                                                                                    target_dim,
+                                                                                    long_term_memory,
+                                                                                    h_prev_time,
+                                                                                    c_prev_time)
+
+                                # replace with the blended result
+                                cur_t_tile_label_pred_blend[:label_tile_height//2, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_00
+                                cur_t_tile_label_pred_blend[:label_tile_height//2, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_01
+                                cur_t_tile_label_pred_blend[label_tile_height//2:, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_10
+                                cur_t_tile_label_pred_blend[label_tile_height//2:, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_11
+
+                                # stitch the blended tiles
+                                cur_t_stitched_label_pred_blend[h*label_tile_height:(h+1)*label_tile_height,
+                                                                w*label_tile_width:(w+1)*label_tile_width,
+                                                                :] \
+                                    = cur_t_tile_label_pred_blend
+                        elif network_model == 'memory-piv-net-no-neighbor':
+                            cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
                                                 w*label_tile_width:(w+1)*label_tile_width,
                                                 :] \
-                            = cur_t_tile_label_true
+                                = cur_t_tile_block.permute(0, 2, 3, 1)[0,:, :, time_span//2:time_span//2+1].cpu().numpy()
 
-                        cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
-                                                w*label_tile_width:(w+1)*label_tile_width,
-                                                :] \
-                            = cur_t_tile_label_pred
+                            cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
+                                                    w*label_tile_width:(w+1)*label_tile_width,
+                                                    :] \
+                                = cur_t_tile_label_true
+
+                            cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
+                                                    w*label_tile_width:(w+1)*label_tile_width,
+                                                    :] \
+                                = cur_t_tile_label_pred
 
                 # scale the result from [0, 256] to [0, 1]
                 cur_t_stitched_label_pred = cur_t_stitched_label_pred / final_size
                 cur_t_stitched_label_true = cur_t_stitched_label_true / final_size
-                if blend:
+                if blend or blend_new:
                     cur_t_stitched_label_pred_blend = cur_t_stitched_label_pred_blend / final_size
 
                 # compute loss
@@ -1009,6 +1199,7 @@ def run_test(network_model,
                 loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
                 fig.savefig(loss_curve_path, bbox_inches='tight')
 
+# use when training with long term memroy
 def repackage_hidden(h):
     """Wraps hidden states in new Tensors, to detach them from their history."""
 
@@ -2005,7 +2196,8 @@ def main():
                     final_size,
                     device,
                     long_term_memory,
-                    blend=True,
+                    blend=False,
+                    blend_new=True,
                     draw_normal=True,
                     draw_glyph=False)
 
