@@ -624,6 +624,7 @@ def prepare_patches(t,
             if i_tile+1 < num_tile_column**2:
                 all_test_patches[i:i+1, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i_tile+1:i_tile+2, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
 
+
     # get predictions from these patches
     all_patches_pred = np.zeros((num_patch_per_image, label_tile_height, label_tile_width, target_dim), dtype=np.float32)
     for i in range(len(all_test_patches)):
@@ -816,16 +817,24 @@ def run_test(network_model,
                     for i in range(num_tiles_per_image):
                         h = i // num_tile_column
                         w = i % num_tile_column
+                        # stitch the test image
+                        cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
+                                                w*label_tile_width:(w+1)*label_tile_width,
+                                                :] \
+                                = cur_t_image_block.permute(0, 2, 3, 1)[i,
+                                                                        image_tile_height//4:image_tile_height//4*3,
+                                                                        image_tile_width//4:image_tile_width//4*3,
+                                                                        time_span//2:time_span//2+1]
+                        # stitch the ground truth
                         cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
                         cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
                                                     w*label_tile_width:(w+1)*label_tile_width,
                                                     :] \
                                 = cur_t_tile_label_true
-
+                        # stitch the unblended prediction
                         h_patch = 2*h + 1
                         w_patch = 2*w + 1
                         patch_index = h_patch * (2*num_tile_column+1) + w_patch
-
                         cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
                                                   w*label_tile_width:(w+1)*label_tile_width,
                                                   :] \
