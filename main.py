@@ -624,29 +624,32 @@ def prepare_patches(t,
             if i_tile+1 < num_tile_column**2:
                 all_test_patches[i:i+1, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i_tile+1:i_tile+2, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
 
-
     # get predictions from these patches
     all_patches_pred = np.zeros((num_patch_per_image, label_tile_height, label_tile_width, target_dim), dtype=np.float32)
+    if long_term_memory:
+        if t - 9//2 == 0:
+            h_prev_time = []
+            c_prev_time = []
+    else:
+        h_prev_time = []
+        c_prev_time = []
+
     for i in range(len(all_test_patches)):
         # print(f'Inference patch {i}')
         cur_test_patch = torch.from_numpy(all_test_patches[i:i+1]).to(device)
 
-        if long_term_memory:
-            if t - 9//2 == 0:
-                h_prev_time = []
-                c_prev_time = []
-        else:
-            h_prev_time = []
-            c_prev_time = []
-
         prediction, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_test_patch, h_prev_time, c_prev_time, long_term_memory)
+
+        if i == 70:
+            h_cur_time_last = h_cur_time
+            c_cur_time_last = c_cur_time
 
         # put on cpu and permute to channel last
         cur_patch_pred = prediction.cpu().data
         cur_patch_pred = cur_patch_pred.permute(0, 2, 3, 1).numpy()
         all_patches_pred[i] = cur_patch_pred[0]
 
-    return all_patches_pred, h_cur_time, c_cur_time
+    return all_patches_pred, h_cur_time_last, c_cur_time_last
 
 def bilinear_interpolate_blend(h_patch,
                                w_patch,
@@ -974,6 +977,15 @@ def run_test(network_model,
                                         = cur_t_tile_label_pred_blend
 
                 else:
+                    if long_term_memory:
+                        if t - 9//2 == 0:
+                            h_prev_time = []
+                            c_prev_time = []
+                    else:
+                        h_prev_time = []
+                        c_prev_time = []
+
+                    # import pdb; pdb.set_trace()
                     # loop through all the tiles
                     for i in range(num_tiles_per_image):
                         print(f'\nInferencing tile {i}')
@@ -983,22 +995,7 @@ def run_test(network_model,
                         cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
 
                         # run inference
-                        # prediction = lmsi_model(cur_t_tile_block)
-                        if long_term_memory:
-                            # train/validate
-                            if t - 9//2 == 0:
-                                h_prev_time = []
-                                c_prev_time = []
-
-                            h_prev_time = repackage_hidden(h_prev_time)
-                            c_prev_time = repackage_hidden(c_prev_time)
-                            prediction, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
-                            h_prev_time = h_cur_time
-                            c_prev_time = c_cur_time
-                        else:
-                            h_prev_time = []
-                            c_prev_time = []
-                            prediction, _, _ = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
+                        prediction, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
 
                         # put on cpu and permute to channel last
                         cur_t_tile_label_pred = prediction.cpu().data
@@ -1127,6 +1124,10 @@ def run_test(network_model,
                                                     w*label_tile_width:(w+1)*label_tile_width,
                                                     :] \
                                 = cur_t_tile_label_pred
+
+                    if long_term_memory:
+                        h_prev_time = h_cur_time
+                        c_prev_time = c_cur_time
 
                 # scale the result from [0, 256] to [0, 1]
                 cur_t_stitched_label_pred = cur_t_stitched_label_pred / final_size
