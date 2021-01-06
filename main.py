@@ -94,6 +94,9 @@ def blend_top_left(t,
                     c_prev_time=None):
 
     print('blending top left')
+    h = i // num_tile_column
+    w = i % num_tile_column
+
     if long_term_memory:
         if h_prev_time == None or c_prev_time == None:
             raise Exception('h_prev_time and c_prev_time are required when testing using non-amnesia mode')
@@ -107,13 +110,13 @@ def blend_top_left(t,
 
     # construct 00
     # top left is the previous-row previous(left) tile's center part
-    if i-num_tile_column-1 >= 0:
+    if i-num_tile_column-1 >= 0 and w-1 >= 0:
         cur_t_tile_block_00[:, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i-num_tile_column-1:i-num_tile_column, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # top right is the previous-row tile's center part
     if i-num_tile_column >= 0:
         cur_t_tile_block_00[:, :, :image_tile_height//2, image_tile_width//2:] = cur_t_image_block[i-num_tile_column:i-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # bottom left is the previous tile's center part
-    if i-1 >= 0:
+    if i-1 >= 0 and w-1 >= 0:
         cur_t_tile_block_00[:, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i-1:i, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # bottom right is the current tile's center part
     cur_t_tile_block_00[:, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i:i+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
@@ -127,7 +130,7 @@ def blend_top_left(t,
 
     # construct 10
     # left half is the previous tile's vertical central slice
-    if i-1 >= 0:
+    if i-1 >= 0 and w-1 >= 0:
         cur_t_tile_block_10[:, :, :, :image_tile_width//2] = cur_t_image_block[i-1:i, :, :, image_tile_width//4:image_tile_width*3//4]
     # right half is the current tile's vertical central slice
     cur_t_tile_block_10[:, :, :, image_tile_width//2:] = cur_t_image_block[i:i+1, :, :, image_tile_width//4:image_tile_width*3//4]
@@ -139,13 +142,9 @@ def blend_top_left(t,
             h_prev_time = []
             c_prev_time = []
 
-        h_prev_time = repackage_hidden(h_prev_time)
-        c_prev_time = repackage_hidden(c_prev_time)
         prediction_00, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_00.to(device), h_prev_time, c_prev_time, long_term_memory)
         prediction_01, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_01.to(device), h_prev_time, c_prev_time, long_term_memory)
         prediction_10, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_10.to(device), h_prev_time, c_prev_time, long_term_memory)
-        h_prev_time = h_cur_time
-        c_prev_time = c_cur_time
     else:
         h_prev_time = []
         c_prev_time = []
@@ -202,6 +201,9 @@ def blend_top_right(t,
                     c_prev_time=None):
 
     print('blending top right')
+    h = i // num_tile_column
+    w = i % num_tile_column
+
     if long_term_memory:
         if h_prev_time == None or c_prev_time == None:
             raise Exception('h_prev_time and c_prev_time are required when testing using non-amnesia mode')
@@ -225,19 +227,19 @@ def blend_top_right(t,
     if i-num_tile_column >= 0:
         cur_t_tile_block_01[:, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i-num_tile_column:i-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # top right is the previous-row next tile's center part
-    if i-num_tile_column+1 >= 0:
+    if i-num_tile_column+1 >= 0 and w+1 < num_tile_column:
         cur_t_tile_block_01[:, :, :image_tile_height//2, image_tile_width//2:] = cur_t_image_block[i-num_tile_column+1:i-num_tile_column+2, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # bottom left is the current tile's center part
     cur_t_tile_block_01[:, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i:i+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # bottom right is the next tile's center part
-    if i+1 < num_tile_column**2:
+    if i+1 < num_tile_column**2 and w+1 < num_tile_column:
         cur_t_tile_block_01[:, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i+1:i+2, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
 
     # construct data for its y11
     # left half is the current tile's vertical central slice
     cur_t_tile_block_11[:, :, :, :image_tile_width//2] = cur_t_image_block[i:i+1, :, :, image_tile_width//4:image_tile_width*3//4]
     # right half is the next tile's vertical central slice
-    if i+1 < num_tile_column**2:
+    if i+1 < num_tile_column**2 and w+1 < num_tile_column:
         cur_t_tile_block_11[:, :, :, image_tile_width//2:] = cur_t_image_block[i+1:i+2, :, :, image_tile_width//4:image_tile_width*3//4]
 
 
@@ -248,13 +250,9 @@ def blend_top_right(t,
             h_prev_time = []
             c_prev_time = []
 
-        h_prev_time = repackage_hidden(h_prev_time)
-        c_prev_time = repackage_hidden(c_prev_time)
         prediction_00, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_00.to(device), h_prev_time, c_prev_time, long_term_memory)
         prediction_01, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_01.to(device), h_prev_time, c_prev_time, long_term_memory)
         prediction_11, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block_11.to(device), h_prev_time, c_prev_time, long_term_memory)
-        h_prev_time = h_cur_time
-        c_prev_time = c_cur_time
     else:
         h_prev_time = []
         c_prev_time = []
@@ -311,6 +309,9 @@ def blend_bottom_left(t,
                       c_prev_time=None):
 
     print('blending bottom left')
+    h = i // num_tile_column
+    w = i % num_tile_column
+
     if long_term_memory:
         if h_prev_time == None or c_prev_time == None:
             raise Exception('h_prev_time and c_prev_time are required when testing using non-amnesia mode')
@@ -324,19 +325,19 @@ def blend_bottom_left(t,
 
     # construct data for its y00
     # left half is the previous(left) tile's vertical central slice
-    if i-1 >= 0:
+    if i-1 >= 0 and w-1 >= 0:
         cur_t_tile_block_00[:, :, :, :image_tile_width//2] = cur_t_image_block[i-1:i, :, :, image_tile_width//4:image_tile_width*3//4]
     # right half is the current tile's vertical central slice
     cur_t_tile_block_00[:, :, :, image_tile_width//2:] = cur_t_image_block[i:i+1, :, :, image_tile_width//4:image_tile_width*3//4]
 
     # construct data for its y10
     # top left is the previous(left) tile's central part
-    if i-1 >= 0:
+    if i-1 >= 0 and w-1 >= 0:
         cur_t_tile_block_10[:, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i-1:i, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # top right is the current tile's central part
     cur_t_tile_block_10[:, :, :image_tile_height//2, image_tile_width//2:] = cur_t_image_block[i:i+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # bottom left is the next-row previous tile's central part
-    if i+num_tile_column-1 < num_tile_column**2:
+    if i+num_tile_column-1 < num_tile_column**2 and w-1 >= 0:
         cur_t_tile_block_10[:, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i+num_tile_column-1:i+num_tile_column, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
     # bottom right is the next-row tile's central part
     if i+num_tile_column < num_tile_column**2:
@@ -421,6 +422,9 @@ def blend_bottom_right(t,
                        c_prev_time=None):
 
     print('blending bottom right')
+    h = i // num_tile_column
+    w = i % num_tile_column
+
     if long_term_memory:
         if h_prev_time == None or c_prev_time == None:
             raise Exception('h_prev_time and c_prev_time are required when testing using non-amnesia mode')
@@ -438,7 +442,7 @@ def blend_bottom_right(t,
     # left half is the current tile's vertical center slice
     cur_t_tile_block_01[:, :, :, :image_tile_width//2] = cur_t_image_block[i:i+1, :, :, image_tile_height//4:image_tile_height*3//4]
     # right half is the next tile's vertical center slice
-    if i+1 < num_tile_column**2:
+    if i+1 < num_tile_column**2 and w+1 < num_tile_column:
         cur_t_tile_block_01[:, :, :, image_tile_width//2:] = cur_t_image_block[i+1:i+2, :, :, image_tile_height//4:image_tile_height*3//4]
 
     # construct data for its y10
@@ -452,13 +456,13 @@ def blend_bottom_right(t,
     # top left is the current tile's central part
     cur_t_tile_block_11[:, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i:i+1, :, image_tile_height//4:image_tile_height*3//4, image_tile_height//4:image_tile_height*3//4]
     # top right is the next tile's central part
-    if i+1 < num_tile_column**2:
+    if i+1 < num_tile_column**2 and w+1 < num_tile_column:
         cur_t_tile_block_11[:, :, :image_tile_height//2, image_tile_width//2:] = cur_t_image_block[i+1:i+2, :, image_tile_height//4:image_tile_height*3//4, image_tile_height//4:image_tile_height*3//4]
     # bottom left is the next-row tile's central part
     if i+num_tile_column < num_tile_column**2:
         cur_t_tile_block_11[:, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i+num_tile_column:i+num_tile_column+1, :, image_tile_height//4:image_tile_height*3//4, image_tile_height//4:image_tile_height*3//4]
     # bottom right is the next-row next tile's central part
-    if i+num_tile_column+1 < num_tile_column**2:
+    if i+num_tile_column+1 < num_tile_column**2 and w+1 < num_tile_column:
         cur_t_tile_block_11[:, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i+num_tile_column+1:i+num_tile_column+2, :, image_tile_height//4:image_tile_height*3//4, image_tile_height//4:image_tile_height*3//4]
 
 
@@ -510,6 +514,7 @@ def blend_bottom_right(t,
                                                     + (1-r_uni)*s_uni*y10[s, r] + r_uni*s_uni*y11[s, r]
 
     return cur_t_tile_label_pred_blend_11
+
 
 # prepare all the patches for blending and predict with model
 def prepare_patches(t,
@@ -569,13 +574,13 @@ def prepare_patches(t,
             # for patches (h, w) = (0, 0), (2, 0) etc
             if h % 2 == 0 and w % 2 == 0:
                 # top left is the previous-row previous(left) tile's center part
-                if i_tile-num_tile_column-1 >= 0:
+                if i_tile-num_tile_column-1 >= 0 and w_tile-1 >= 0:
                     all_test_patches[i:i+1, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i_tile-num_tile_column-1:i_tile-num_tile_column, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
                 # top right is the previous-row tile's center part
                 if i_tile-num_tile_column >= 0:
                     all_test_patches[i:i+1, :, :image_tile_height//2, image_tile_width//2:] = cur_t_image_block[i_tile-num_tile_column:i_tile-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
                 # bottom left is the previous tile's center part
-                if i_tile-1 >= 0:
+                if i_tile-1 >= 0 and w_tile-1 >= 0:
                     all_test_patches[i:i+1, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i_tile-1:i_tile, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
                 # bottom right is the current tile's center part
                 all_test_patches[i:i+1, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
@@ -591,7 +596,7 @@ def prepare_patches(t,
             # for patches (h, w) = (1, 0), (3, 2) etc
             elif h % 2 != 0 and w % 2 == 0:
                 # left half is the previous tile's vertical central slice
-                if i_tile-1 >= 0:
+                if i_tile-1 >= 0 and w_tile-1 >= 0:
                     all_test_patches[i:i+1, :, :, :image_tile_width//2] = cur_t_image_block[i_tile-1:i_tile, :, :, image_tile_width//4:image_tile_width*3//4]
                 # right half is the current tile's vertical central slice
                 all_test_patches[i:i+1, :, :, image_tile_width//2:] = cur_t_image_block[i_tile:i_tile+1, :, :, image_tile_width//4:image_tile_width*3//4]
@@ -612,17 +617,47 @@ def prepare_patches(t,
                 w_tile = w // 2
             i_tile = h_tile * num_tile_column + w_tile
 
-            # top left is the previous-row tile's center part
-            if i_tile-num_tile_column >= 0:
-                all_test_patches[i:i+1, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i_tile-num_tile_column:i_tile-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
-            # top right is the previous-row next tile's center part
-            if i_tile-num_tile_column+1 >= 0:
-                all_test_patches[i:i+1, :, :image_tile_height//2, image_tile_width//2:] = cur_t_image_block[i_tile-num_tile_column+1:i_tile-num_tile_column+2, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
-            # bottom left is the current tile's center part
-            all_test_patches[i:i+1, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
-            # bottom right is the next tile's center part
-            if i_tile+1 < num_tile_column**2:
-                all_test_patches[i:i+1, :, image_tile_height//2:, image_tile_width//2:] = cur_t_image_block[i_tile+1:i_tile+2, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+            # determine the kinds of patches
+            # last row
+            if h == 8 and w != 8:
+                # for patches (h, w) = (8, 0), (8, 2) etc
+                if w % 2 == 0:
+                    # top left is the previous tile's center part
+                    if i_tile-num_tile_column-1 >= 0 and w_tile-1 >= 0:
+                        all_test_patches[i:i+1, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i_tile-1:i_tile, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+                    # top right is the current tile's center part
+                    if i_tile-num_tile_column >= 0:
+                        all_test_patches[i:i+1, :, :image_tile_height//2, image_tile_width//2:] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+                    # bottom left and right are empty
+
+                # for patches (h, w) = (8, 1), (8, 3) etc
+                else:
+                    # top half is the current tile's horizontal central slice
+                    all_test_patches[i:i+1, :, :image_tile_height//2, :] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, :]
+                    # bottom half is empty
+
+            # last column
+            elif h != 8 and w == 8:
+                # for patches (h, w) = (0, 8), (2,8) etc
+                if h % 2 == 0:
+                    # top left is the previous-row tile's center part
+                    if i_tile-num_tile_column-1 >= 0:
+                        all_test_patches[i:i+1, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i_tile-num_tile_column:i_tile-num_tile_column+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+                    # top and bottom right is empty
+                    # bottom left is the current tile's center part
+                    all_test_patches[i:i+1, :, image_tile_height//2:, :image_tile_width//2] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+
+                # for patches (h, w) = (1, 8), (3,8) etc
+                else:
+                    # left half is the current tile's vertical central slice
+                    all_test_patches[i:i+1, :, :, :image_tile_width//2] = cur_t_image_block[i_tile:i_tile+1, :, :, image_tile_width//4:image_tile_width*3//4]
+                    # right half is empty
+
+            # last piece
+            elif h == 8 and w == 8:
+                # top left is the current tile's central part
+                all_test_patches[i:i+1, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
+                # others are empty
 
     # get predictions from these patches
     all_patches_pred = np.zeros((num_patch_per_image, label_tile_height, label_tile_width, target_dim), dtype=np.float32)
@@ -650,6 +685,7 @@ def prepare_patches(t,
         all_patches_pred[i] = cur_patch_pred[0]
 
     return all_patches_pred, h_cur_time_last, c_cur_time_last
+
 
 def bilinear_interpolate_blend(h_patch,
                                w_patch,
