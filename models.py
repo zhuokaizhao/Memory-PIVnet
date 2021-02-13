@@ -554,7 +554,7 @@ class Memory_PIVnet(torch.nn.Module):
                                                                       stride=2,
                                                                       padding=1,
                                                                       bias=False,
-                                                                      groups=2)
+                                                                      groups=self.out_channels)
 
                         # feature net extract more information from catenated input (hidden state, previous level flow)
                         if level == 0:

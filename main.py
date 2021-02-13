@@ -30,7 +30,7 @@ import plot
 import tools
 import pair_data
 
-os.environ['CUDA_VISIBLE_DEVICES']='0'
+os.environ['CUDA_VISIBLE_DEVICES']='1'
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
@@ -822,6 +822,7 @@ def run_test(network_model,
             final_size,
             device,
             long_term_memory,
+            vorticity,
             blend=False,
             blend_new=False,
             draw_normal=True,
@@ -1338,7 +1339,10 @@ def run_test(network_model,
 
 
                     # finally save the testing image
-                    test_image_path = os.path.join(figs_dir, f'test_{t-9//2}.png')
+                    if vorticity:
+                        test_image_path = os.path.join(figs_dir, f'test_vorticity_{t-9//2}.png')
+                    else:
+                        test_image_path = os.path.join(figs_dir, f'test_{t-9//2}.png')
                     cur_t_test_image.save(test_image_path)
                     print(f'Test image has been saved to {test_image_path}')
 
@@ -1349,7 +1353,10 @@ def run_test(network_model,
             print(f'\nAverage unblended {loss} is {avg_loss}')
             print(f'Min unblended {loss} is {min_loss} at t={min_loss_index}\n')
             # save all the losses to file
-            loss_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.npy')
+            if vorticity:
+                loss_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.npy')
+            else:
+                loss_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.npy')
             np.save(loss_path, all_losses)
             # generate loss curve plot
             t = np.arange(start_t, end_t+1)
@@ -1357,7 +1364,10 @@ def run_test(network_model,
             ax.plot(t, all_losses)
             ax.set(xlabel='timestamp', ylabel=f'{loss}')
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.svg')
+            if vorticity:
+                loss_curve_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.svg')
+            else:
+                loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.svg')
             fig.savefig(loss_curve_path, bbox_inches='tight')
 
             if blend or blend_new:
@@ -1373,7 +1383,10 @@ def run_test(network_model,
                 ax.plot(t, all_losses_blend)
                 ax.set(xlabel='timestamp', ylabel=f'{loss}')
                 ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-                loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
+                if vorticity:
+                    loss_curve_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
+                else:
+                    loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
                 fig.savefig(loss_curve_path, bbox_inches='tight')
 
 # use when training with long term memroy
@@ -1403,6 +1416,8 @@ def main():
     parser.add_argument('--test-dir', action='store', nargs=1, dest='test_dir')
     # dataset property (ours or other existing image-pair datasets)
     parser.add_argument('-d', '--data-type', action='store', nargs=1, dest='data_type')
+    # velocity data or vorticity data
+    parser.add_argument('--vorticity', action='store_true', dest='vorticity', default=False)
     # epoch size
     parser.add_argument('-e', '--num-epoch', action='store', nargs=1, dest='num_epoch')
     # batch size
@@ -1476,7 +1491,11 @@ def main():
         # train-related parameters
         num_epoch = int(args.num_epoch[0])
         batch_size = int(args.batch_size[0])
-        target_dim = 2
+        vorticity = args.vorticity
+        if vorticity:
+            target_dim = 1
+        else:
+            target_dim = 2
         if args.time_span != None:
             time_span = int(args.time_span[0])
         else:
@@ -1558,6 +1577,7 @@ def main():
             print(f'\nGPU usage: {device}')
             print(f'netowrk model: {network_model}')
             print(f'dataset type: {data_type}')
+            print(f'vorticity: {vorticity}')
             print(f'input training data dir: {train_dir}')
             if data_type == 'multi-frame' or data_type == 'one-sided' or data_type == 'image-pair-tiled':
                 print(f'input validation data dir: {val_dir}')
@@ -1997,7 +2017,7 @@ def main():
         kwargs = {
                     'num_channels':               num_channels,
                     'time_span':                  time_span,
-                    'target_dim':                 2,
+                    'target_dim':                 target_dim,
                     'device':                     device
                  }
 
@@ -2234,7 +2254,10 @@ def main():
         print(f'\nLoss graph has been saved to {loss_path}')
 
         # save model as a checkpoint so further training could be resumed
-        model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
+        if vorticity:
+            model_path = os.path.join(model_dir, f'{network_model}_vorticity_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
+        else:
+            model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
         # if trained on multiple GPU's, store model.module.state_dict()
         if torch.cuda.device_count() > 1:
             model_checkpoint = {
@@ -2283,7 +2306,11 @@ def main():
         start_t = int(args.start_t[0])
         end_t = int(args.end_t[0])
         # useful arguments in this mode
-        target_dim = 2
+        vorticity = args.vorticity
+        if vorticity:
+            target_dim = 1
+        else:
+            target_dim = 2
         loss = args.loss[0]
         long_term_memory = args.long_term_memory
         final_size = 256
@@ -2374,6 +2401,7 @@ def main():
                     final_size,
                     device,
                     long_term_memory,
+                    vorticity,
                     blend=False,
                     blend_new=True,
                     draw_normal=True,
