@@ -665,8 +665,8 @@ class Memory_PIVnet(torch.nn.Module):
         #                                   out_channels=self.target_dim)
         # else:
         self.estimate_flow = EstimateFlow(num_levels=4,
-                                        # in_channels=all_hidden_channels[-1],
-                                        in_channels=all_hidden_channels[-1]+all_hidden_channels[-1]//2,
+                                        in_channels=all_hidden_channels[-1],
+                                        # in_channels=all_hidden_channels[-1]+all_hidden_channels[-1]//2,
                                         feat_channels=256,
                                         out_channels=self.target_dim)
 
@@ -725,15 +725,15 @@ class Memory_PIVnet(torch.nn.Module):
 
             return pe
 
-        for i in range(len(final_h)):
-            cur_h = final_h[i]
-            batch_size = cur_h.shape[0]
-            d_model = cur_h.shape[1] // 2
-            height = cur_h.shape[2]
-            width = cur_h.shape[3]
+        # for i in range(len(final_h)):
+        #     cur_h = final_h[i]
+        #     batch_size = cur_h.shape[0]
+        #     d_model = cur_h.shape[1] // 2
+        #     height = cur_h.shape[2]
+        #     width = cur_h.shape[3]
 
-            cur_h_pe = PE_2d(batch_size, d_model, height, width).to(self.device)
-            final_h[i] = torch.cat((final_h[i], cur_h_pe), dim=1)
+        #     cur_h_pe = PE_2d(batch_size, d_model, height, width).to(self.device)
+        #     final_h[i] = torch.cat((final_h[i], cur_h_pe), dim=1)
 
         # flow estimation
         pred_flow = self.estimate_flow(final_h)

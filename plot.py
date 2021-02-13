@@ -158,7 +158,7 @@ def visualize_AEE(pred_error, aee_path):
     # visualize the error magnitude
     plt.figure(figsize=(5, 5))
     ax = plt.gca()
-    im = ax.imshow(pred_error, cmap='PuBuGn', interpolation='nearest', vmin=0.0,  vmax=1.0)
+    im = ax.imshow(pred_error, cmap='PuBuGn', interpolation='nearest', vmin=0.0,  vmax=0.2)
     plt.axis('off')
     # create an axes on the right side of plt. The width of cax will be 5%
     # of ax and the padding between cax and ax will be fixed at 0.05 inch.
