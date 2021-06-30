@@ -1198,7 +1198,7 @@ def run_test(network_model,
                         plt.gca().set_axis_off()
                         plt.gca().xaxis.set_major_locator(plt.NullLocator())
                         plt.gca().yaxis.set_major_locator(plt.NullLocator())
-                        true_quiver_path = os.path.join(figs_dir, f'true_{t-9//2}.svg')
+                        true_quiver_path = os.path.join(figs_dir, f'true_{t-9//2}.png')
                         plt.savefig(true_quiver_path, bbox_inches='tight', dpi=my_dpi)
                         print(f'ground truth quiver plot has been saved to {true_quiver_path}')
 
@@ -1214,7 +1214,7 @@ def run_test(network_model,
                         else:
                             plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
 
-                    unblend_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_unblend.svg')
+                    unblend_path = os.path.join(figs_dir, 'unblend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_unblend.png')
                     plt.gca().set_axis_off()
                     plt.gca().xaxis.set_major_locator(plt.NullLocator())
                     plt.gca().yaxis.set_major_locator(plt.NullLocator())
@@ -1227,13 +1227,13 @@ def run_test(network_model,
                                 -cur_t_stitched_label_pred[::skip, ::skip, 1]/max_vel,
                                 scale=4.0,
                                 scale_units='inches')
-                    unblend_quiver_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_quiver_unblend.svg')
+                    unblend_quiver_path = os.path.join(figs_dir, 'unblend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_unblend.png')
                     plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=my_dpi)
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
 
                     # visualize and save the AEE
                     if all_test_label_sequences != None:
-                        aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.svg')
+                        aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.png')
                         plot.visualize_AEE(pred_error_unblend, aee_path)
 
                     # same kind of plot for blended predictions
@@ -1252,7 +1252,7 @@ def run_test(network_model,
                             else:
                                 plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
 
-                        blend_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_blend.svg')
+                        blend_path = os.path.join(figs_dir, 'blend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_blend.png')
                         plt.gca().set_axis_off()
                         plt.gca().xaxis.set_major_locator(plt.NullLocator())
                         plt.gca().yaxis.set_major_locator(plt.NullLocator())
@@ -1265,44 +1265,44 @@ def run_test(network_model,
                                     -cur_t_stitched_label_pred_blend[::skip, ::skip, 1]/max_vel,
                                     scale=4.0,
                                     scale_units='inches')
-                        blend_quiver_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_quiver_blend.svg')
+                        blend_quiver_path = os.path.join(figs_dir, 'blend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_blend.png')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=my_dpi)
                         print(f'blended quiver plot has been saved to {blend_quiver_path}')
 
                         # AEE
                         if all_test_label_sequences != None:
-                            aee_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.svg')
+                            aee_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.png')
                             plot.visualize_AEE(pred_error_blend, aee_path_blend)
 
                     # finally save the testing image
                     if vorticity:
-                        test_image_path = os.path.join(figs_dir, f'test_vorticity_{t-9//2}.png')
+                        test_image_path = os.path.join(figs_dir, 'test_images', f'test_vorticity_{t-9//2}.png')
                     else:
-                        test_image_path = os.path.join(figs_dir, f'test_velocity_{t-9//2}.png')
+                        test_image_path = os.path.join(figs_dir, 'test_images', f'test_velocity_{t-9//2}.png')
                     cur_t_test_image.save(test_image_path)
                     print(f'Test image has been saved to {test_image_path}')
 
                 # save the resulting velocity/vorticity fields
                 if save_results:
                     if vorticity:
-                        result_path = os.path.join(figs_dir, f'test_vorticity_{t-9//2}.npz')
+                        result_path = os.path.join(figs_dir, 'unblend_vor_field', f'test_vorticity_{t-9//2}.npz')
                         np.savez(result_path,
                                 vorticity=cur_t_stitched_label_pred)
                         print(f'Unblend vorticity has been saved to {result_path}')
 
                         if blend:
-                            result_blend_path = os.path.join(figs_dir, f'test_vorticity_blend_{t-9//2}.npz')
+                            result_blend_path = os.path.join(figs_dir, 'unblend_vor_field', f'test_vorticity_blend_{t-9//2}.npz')
                             np.savez(result_blend_path,
                                     vorticity=cur_t_stitched_label_pred_blend)
                             print(f'Blend vorticity has been saved to {result_path}')
                     else:
-                        result_path = os.path.join(figs_dir, f'test_velocity_{t-9//2}.npz')
+                        result_path = os.path.join(figs_dir, 'unblend_vel_field', f'test_velocity_{t-9//2}.npz')
                         np.savez(result_path,
                                 velocity=cur_t_stitched_label_pred)
                         print(f'Unblend velocity has been saved to {result_path}')
 
                         if blend:
-                            result_blend_path = os.path.join(figs_dir, f'test_velocity_blend_{t-9//2}.npz')
+                            result_blend_path = os.path.join(figs_dir, 'blend_vel_field', f'test_velocity_blend_{t-9//2}.npz')
                             np.savez(result_blend_path,
                                     velocity=cur_t_stitched_label_pred_blend)
                             print(f'Blend velocity has been saved to {result_blend_path}')
