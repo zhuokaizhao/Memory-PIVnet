@@ -620,7 +620,7 @@ def prepare_patches(t,
 
             # determine the kinds of patches
             # last row
-            if h == 8 and w != 8:
+            if h == num_patch_row-1 and w != num_patch_column-1:
                 # for patches (h, w) = (8, 0), (8, 2) etc
                 if w % 2 == 0:
                     # top left is the previous tile's center part
@@ -638,7 +638,7 @@ def prepare_patches(t,
                     # bottom half is empty
 
             # last column
-            elif h != 8 and w == 8:
+            elif h != num_patch_row-1 and w == num_patch_column-1:
                 # for patches (h, w) = (0, 8), (2,8) etc
                 if h % 2 == 0:
                     # top left is the previous-row tile's center part
@@ -655,7 +655,7 @@ def prepare_patches(t,
                     # right half is empty
 
             # last piece
-            elif h == 8 and w == 8:
+            elif h == num_patch_row-1 and w == num_patch_column-1:
                 # top left is the current tile's central part
                 all_test_patches[i:i+1, :, :image_tile_height//2, :image_tile_width//2] = cur_t_image_block[i_tile:i_tile+1, :, image_tile_width//4:image_tile_width*3//4, image_tile_width//4:image_tile_width*3//4]
                 # others are empty
