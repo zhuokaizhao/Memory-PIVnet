@@ -537,11 +537,11 @@ def prepare_patches(t,
     image_tile_height = cur_t_image_block.shape[2]
     image_tile_width = cur_t_image_block.shape[3]
 
-    num_tile_row = final_size // label_tile_height
-    num_tile_column = final_size // label_tile_width
+    num_tile_row = final_size[0] // label_tile_height
+    num_tile_column = final_size[1] // label_tile_width
 
     if num_tile_row * num_tile_column != num_tile_per_image:
-        raise Exception(f'tile numbers mismatch')
+        raise Exception(f'tile numbers mismatch, needs {num_tile_per_image}, have {num_tile_row} * {num_tile_column}')
 
     # the number of patches needed
     num_patch_row = 2*num_tile_row + 1
@@ -899,8 +899,8 @@ def run_test(network_model,
             # label_tile_width = cur_label_sequence.shape[4]
             label_tile_height = tile_size[0]
             label_tile_width = tile_size[1]
-            num_tile_row = final_size//label_tile_height
-            num_tile_column = final_size//label_tile_width
+            num_tile_row = final_size[0]//label_tile_height
+            num_tile_column = final_size[1]//label_tile_width
 
             # for minimal gpu ram purpose, take one time stamp at a time
             num_time_frames = len(cur_image_sequence)
@@ -930,21 +930,21 @@ def run_test(network_model,
                     print(f'cur_t_label_tile.shape {cur_t_label_tile.shape}')
 
                 # stitched result for the current t
-                cur_t_stitched_image = np.zeros((final_size,
-                                                final_size,
+                cur_t_stitched_image = np.zeros((final_size[0],
+                                                final_size[1],
                                                 1))
-                cur_t_stitched_label_pred = np.zeros((final_size,
-                                                        final_size,
+                cur_t_stitched_label_pred = np.zeros((final_size[0],
+                                                        final_size[1],
                                                         target_dim))
                 if all_test_label_sequences != None:
-                    cur_t_stitched_label_true = np.zeros((final_size,
-                                                            final_size,
+                    cur_t_stitched_label_true = np.zeros((final_size[0],
+                                                            final_size[1],
                                                             target_dim))
 
                 # blended results
                 if blend:
-                    cur_t_stitched_label_pred_blend = np.zeros((final_size,
-                                                                final_size,
+                    cur_t_stitched_label_pred_blend = np.zeros((final_size[0],
+                                                                final_size[1],
                                                                 target_dim))
                     # run inference
                     if long_term_memory:
@@ -1072,12 +1072,15 @@ def run_test(network_model,
                                                     :] \
                                 = cur_t_tile_label_true
 
-                # scale the result from [0, 256] to [0, 1]
-                cur_t_stitched_label_pred = cur_t_stitched_label_pred / final_size
+                # scale the result from [0, image_height or image_width] to [0, 1]
+                cur_t_stitched_label_pred[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / final_size[0]
+                cur_t_stitched_label_pred[:, :, 1] = cur_t_stitched_label_pred[:, :, 1] / final_size[1]
                 if all_test_label_sequences != None:
-                    cur_t_stitched_label_true = cur_t_stitched_label_true / final_size
+                    cur_t_stitched_label_true[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / final_size[0]
+                    cur_t_stitched_label_true[:, :, 1] = cur_t_stitched_label_true[:, :, 1] / final_size[1]
                 if blend:
-                    cur_t_stitched_label_pred_blend = cur_t_stitched_label_pred_blend / final_size
+                    cur_t_stitched_label_pred_blend[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / final_size[0]
+                    cur_t_stitched_label_pred_blend[:, :, 1] = cur_t_stitched_label_pred_blend[:, :, 1] / final_size[1]
 
                 # compute loss if ground truth is given
                 if all_test_label_sequences != None:
@@ -1087,14 +1090,14 @@ def run_test(network_model,
                             loss_unblend = torch.sqrt(loss_unblend)
                     elif loss == 'AEE':
                         sum_endpoint_error = 0
-                        for i in range(final_size):
-                            for j in range(final_size):
+                        for i in range(final_size[0]):
+                            for j in range(final_size[1]):
                                 cur_pred = cur_t_stitched_label_pred[i, j]
                                 cur_true = cur_t_stitched_label_true[i, j]
                                 cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
                                 sum_endpoint_error += cur_endpoint_error
 
-                        loss_unblend = sum_endpoint_error / (final_size*final_size)
+                        loss_unblend = sum_endpoint_error / (final_size[0]*final_size[1])
                     # customized metric that converts into polar coordinates and compare
                     elif loss == 'polar':
                         # convert both truth and predictions to polar coordinate
@@ -1125,14 +1128,14 @@ def run_test(network_model,
                                 loss_blend = torch.sqrt(loss_blend)
                         elif loss == 'AEE':
                             sum_endpoint_error_blend = 0
-                            for i in range(final_size):
-                                for j in range(final_size):
+                            for i in range(final_size[0]):
+                                for j in range(final_size[1]):
                                     cur_pred_blend = cur_t_stitched_label_pred_blend[i, j]
                                     cur_true = cur_t_stitched_label_true[i, j]
                                     cur_endpoint_error_blend = np.linalg.norm(cur_pred_blend-cur_true)
                                     sum_endpoint_error_blend += cur_endpoint_error_blend
 
-                            loss_blend = sum_endpoint_error_blend / (final_size*final_size)
+                            loss_blend = sum_endpoint_error_blend / (final_size[0]*final_size[1])
                         # customized metric that converts into polar coordinates and compare
                         elif loss == 'polar':
                             # convert both truth and predictions to polar coordinate
@@ -1157,7 +1160,7 @@ def run_test(network_model,
 
                 # save the input image, ground truth, prediction, and difference
                 if draw_normal:
-                    cur_t_test_image = cur_t_stitched_image[:, :, 0].astype(np.uint8).reshape((final_size, final_size))
+                    cur_t_test_image = cur_t_stitched_image[:, :, 0].astype(np.uint8).reshape((final_size[0], final_size[1]))
                     # visualize the true velocity field if provided
                     if all_test_label_sequences != None:
                         cur_t_flow_true, max_vel = plot.visualize_flow(cur_t_stitched_label_true)
@@ -1173,8 +1176,8 @@ def run_test(network_model,
                     cur_t_flow_pred = Image.fromarray(cur_t_flow_pred)
 
                     # used for superimposing quiver plot on color-coded images
-                    x = np.linspace(0, final_size-1, final_size)
-                    y = np.linspace(0, final_size-1, final_size)
+                    x = np.linspace(0, final_size[1]-1, final_size[1])
+                    y = np.linspace(0, final_size[0]-1, final_size[0])
                     y_pos, x_pos = np.meshgrid(x, y)
                     skip = 8
 
@@ -2276,7 +2279,10 @@ def main():
         loss = args.loss[0]
         long_term_memory = args.long_term_memory
         # final_size = 256
-        final_size = 1024
+        # for Irvine JHTD
+        # final_size = [1024, 1024]
+        # for horizontal move
+        final_size = [1280, 800]
 
         # sanity check to make sure network model and data type are compatible
         if network_model == 'memory-piv-net':
