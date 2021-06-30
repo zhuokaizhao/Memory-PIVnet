@@ -1244,7 +1244,7 @@ def run_test(network_model,
                     # same kind of plot for blended predictions
                     if blend:
                         # prediction visualization
-                        cur_t_flow_pred_blend, _ = plot.visualize_flow(cur_t_stitched_label_pred_blend, max_vel=max_vel)
+                        cur_t_flow_pred_blend, max_vel = plot.visualize_flow(cur_t_stitched_label_pred_blend)
                         cur_t_flow_pred_blend = Image.fromarray(cur_t_flow_pred_blend)
                         plt.figure(figsize=(15, 15))
                         plt.imshow(cur_t_flow_pred_blend)
@@ -1268,7 +1268,7 @@ def run_test(network_model,
                                     y_pos[::skip, ::skip],
                                     cur_t_stitched_label_pred_blend[::skip, ::skip, 0]/max_vel,
                                     -cur_t_stitched_label_pred_blend[::skip, ::skip, 1]/max_vel,
-                                    scale=2.0,
+                                    scale=1.0,
                                     scale_units='inches')
                         blend_quiver_path = os.path.join(figs_dir, 'blend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_blend.svg')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=my_dpi)
@@ -2282,9 +2282,9 @@ def main():
         long_term_memory = args.long_term_memory
         # final_size = 256
         # for Irvine JHTD
-        # final_size = [1024, 1024]
+        final_size = [1024, 1024]
         # for horizontal move
-        final_size = [800, 1280]
+        # final_size = [800, 1280]
 
         # sanity check to make sure network model and data type are compatible
         if network_model == 'memory-piv-net':
