@@ -20,6 +20,7 @@ import argparse
 import subprocess
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 from subprocess import call
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -669,8 +670,7 @@ def prepare_patches(t,
         h_prev_time = []
         c_prev_time = []
 
-    for i in range(len(all_test_patches)):
-        # print(f'Inference patch {i}')
+    for i in tqdm(range(len(all_test_patches)), desc=f"Inferencing patch"):
         cur_test_patch = torch.from_numpy(all_test_patches[i:i+1]).to(device)
 
         prediction, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_test_patch, h_prev_time, c_prev_time, long_term_memory)
@@ -809,7 +809,6 @@ def bilinear_interpolate_blend(h_patch,
 # both start_t and end_t are inclusive
 def run_test(network_model,
             all_test_image_sequences,
-            all_test_label_sequences,
             model_dir,
             figs_dir,
             loss,
@@ -817,16 +816,18 @@ def run_test(network_model,
             end_t,
             num_channels,
             time_span,
+            tile_size,
             target_dim,
             num_tiles_per_image,
             final_size,
             device,
             long_term_memory,
             vorticity,
-            blend=False,
-            blend_new=False,
+            all_test_label_sequences=None,
+            blend=True,
             draw_normal=True,
-            draw_glyph=False):
+            draw_glyph=False,
+            save_results=True):
 
     with torch.no_grad():
         # check if input parameters are valid
@@ -867,10 +868,10 @@ def run_test(network_model,
         trained_model = torch.load(model_dir)
         lmsi_model.load_state_dict(trained_model['state_dict'])
 
-        # assume testing data has shape (1, 16, 260, 1, 128, 128)
+        # assume testing image has shape (1, 16, 260, 1, 128, 128)
         # which means 1 sequence, which is splitted into 16 tile-sequences
         # since time span is 9, the total time stamp is 260-time_span+1 = 252
-        # each neighbor tile has size 1*128*128 (channel first)
+        # each neighbor tile has size 1*128*128 (channel first image)
         # take testing sequence order one by one
         test_start_time = time.time()
         sequence_order = list(range(len(all_test_image_sequences)))
@@ -883,17 +884,21 @@ def run_test(network_model,
             # cur_image_sequence has shape (16, 260, 128, 128)
             cur_image_sequence = all_test_image_sequences[sequence_index, :, :, 0, :, :]
             print(f'cur_image_sequence.shape {cur_image_sequence.shape}')
-            # cur_label_sequence has shape (16, 260, target_dim, 64, 64)
-            cur_label_sequence = all_test_label_sequences[sequence_index]
-            print(f'cur_label_sequence.shape {cur_label_sequence.shape}')
+            # when the ground truth is also provided
+            if all_test_label_sequences != None:
+                # cur_label_sequence has shape (16, 260, target_dim, tile_height=64, tile_width=64)
+                cur_label_sequence = all_test_label_sequences[sequence_index]
+                print(f'cur_label_sequence.shape {cur_label_sequence.shape}')
 
             # some values that are needed in the future
-            # image tile height and width
+            # image tile height and width (neighbor size when padding exists)
             image_tile_height = cur_image_sequence.shape[2]
             image_tile_width = cur_image_sequence.shape[3]
-            # label tile height and width
-            label_tile_height = cur_label_sequence.shape[3]
-            label_tile_width = cur_label_sequence.shape[4]
+            # label tile height and width (tile size)
+            # label_tile_height = cur_label_sequence.shape[3]
+            # label_tile_width = cur_label_sequence.shape[4]
+            label_tile_height = tile_size[0]
+            label_tile_width = tile_size[1]
             num_tile_row = final_size//label_tile_height
             num_tile_column = final_size//label_tile_width
 
@@ -918,34 +923,36 @@ def run_test(network_model,
                     cur_t_image_block = cur_image_sequence[:, t-time_span//2:t+time_span//2+1]
 
                 print(f'cur_t_image_block.shape {cur_t_image_block.shape}')
-                # cur_t_label_tile has shape (16, target_dim, 64, 64)
-                cur_t_label_tile = cur_label_sequence[:, t]
-                print(f'cur_t_label_tile.shape {cur_t_label_tile.shape}')
+
+                if all_test_label_sequences != None:
+                    # cur_t_label_tile has shape (16, target_dim, 64, 64)
+                    cur_t_label_tile = cur_label_sequence[:, t]
+                    print(f'cur_t_label_tile.shape {cur_t_label_tile.shape}')
 
                 # stitched result for the current t
                 cur_t_stitched_image = np.zeros((final_size,
                                                 final_size,
                                                 1))
-                cur_t_stitched_label_true = np.zeros((final_size,
-                                                        final_size,
-                                                        target_dim))
                 cur_t_stitched_label_pred = np.zeros((final_size,
                                                         final_size,
                                                         target_dim))
+                if all_test_label_sequences != None:
+                    cur_t_stitched_label_true = np.zeros((final_size,
+                                                            final_size,
+                                                            target_dim))
 
-                if blend or blend_new:
+                # blended results
+                if blend:
                     cur_t_stitched_label_pred_blend = np.zeros((final_size,
                                                                 final_size,
                                                                 target_dim))
-
-                if blend_new:
                     # run inference
                     if long_term_memory:
                         # train/validate
                         if t - 9//2 == 0:
                             h_prev_time = []
                             c_prev_time = []
-
+                        # repackage is needed for long-term memory version of MPN
                         h_prev_time = repackage_hidden(h_prev_time)
                         c_prev_time = repackage_hidden(c_prev_time)
                     else:
@@ -983,21 +990,14 @@ def run_test(network_model,
                                                                         image_tile_width//4:image_tile_width//4*3,
                                                                         time_span//2:time_span//2+1]
 
-                        # stitch the ground truth
-                        cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
-                        cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
-                                                    w*label_tile_width:(w+1)*label_tile_width,
-                                                    :] \
-                                = cur_t_tile_label_true
-
                         # stitch the unblended prediction
                         h_patch = 2*h + 1
                         w_patch = 2*w + 1
                         patch_index = h_patch * (2*num_tile_column+1) + w_patch
                         cur_t_tile_label_pred = all_patches_pred[patch_index]
                         cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
-                                                  w*label_tile_width:(w+1)*label_tile_width,
-                                                  :] \
+                                                    w*label_tile_width:(w+1)*label_tile_width,
+                                                    :] \
                                 = cur_t_tile_label_pred
 
                         # bilinear interpolate blend the current tile
@@ -1013,6 +1013,14 @@ def run_test(network_model,
                                                         :] \
                                         = cur_t_tile_label_pred_blend
 
+                        # stitch the ground truth
+                        if all_test_label_sequences != None:
+                            cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
+                            cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
+                                                        w*label_tile_width:(w+1)*label_tile_width,
+                                                        :] \
+                                    = cur_t_tile_label_true
+
                 else:
                     if long_term_memory:
                         if t - 9//2 == 0:
@@ -1024,12 +1032,12 @@ def run_test(network_model,
 
                     # import pdb; pdb.set_trace()
                     # loop through all the tiles
-                    for i in range(num_tiles_per_image):
-                        print(f'\nInferencing tile {i}')
+                    for i in tqdm(range(num_tiles_per_image), desc=f"Inferencing patch"):
                         # cur_t_tile_block has shape (1, time_span, 128, 128)
                         cur_t_tile_block = cur_t_image_block[i:i+1].to(device)
                         # cur_t_tile_label has shape (64, 64, target_dim)
-                        cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
+                        if all_test_label_sequences != None:
+                            cur_t_tile_label_true = cur_t_label_tile[i].permute(1, 2, 0).numpy()
 
                         # run inference
                         prediction, h_cur_time, c_cur_time = lmsi_model(t-9//2, cur_t_tile_block, h_prev_time, c_prev_time, long_term_memory)
@@ -1053,341 +1061,295 @@ def run_test(network_model,
                                                                     image_tile_width//4:image_tile_width//4*3,
                                                                     time_span//2:time_span//2+1].cpu().numpy()
 
-                            cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
-                                                    w*label_tile_width:(w+1)*label_tile_width,
-                                                    :] \
-                                = cur_t_tile_label_true
-
                             cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
                                                     w*label_tile_width:(w+1)*label_tile_width,
                                                     :] \
                                 = cur_t_tile_label_pred
 
-                            # if blending is needed
-                            if blend:
-                                cur_t_tile_label_pred_blend = copy.deepcopy(cur_t_tile_label_pred)
-                                # blend all four parts
-                                # blend top left
-                                cur_t_tile_label_pred_blend_00 = blend_top_left(t,
-                                                                                i,
-                                                                                device,
-                                                                                lmsi_model,
-                                                                                cur_t_image_block,
-                                                                                cur_t_tile_label_pred,
-                                                                                image_tile_height,
-                                                                                image_tile_width,
-                                                                                label_tile_height,
-                                                                                label_tile_width,
-                                                                                num_tile_column,
-                                                                                target_dim,
-                                                                                long_term_memory,
-                                                                                h_prev_time,
-                                                                                c_prev_time)
-
-                                # blend top right
-                                cur_t_tile_label_pred_blend_01 = blend_top_right(t,
-                                                                                i,
-                                                                                device,
-                                                                                lmsi_model,
-                                                                                cur_t_image_block,
-                                                                                cur_t_tile_label_pred,
-                                                                                image_tile_height,
-                                                                                image_tile_width,
-                                                                                label_tile_height,
-                                                                                label_tile_width,
-                                                                                num_tile_column,
-                                                                                target_dim,
-                                                                                long_term_memory,
-                                                                                h_prev_time,
-                                                                                c_prev_time)
-
-                                # blend bottom left
-                                cur_t_tile_label_pred_blend_10 = blend_bottom_left(t,
-                                                                                i,
-                                                                                    device,
-                                                                                    lmsi_model,
-                                                                                    cur_t_image_block,
-                                                                                    cur_t_tile_label_pred,
-                                                                                    image_tile_height,
-                                                                                    image_tile_width,
-                                                                                    label_tile_height,
-                                                                                    label_tile_width,
-                                                                                    num_tile_column,
-                                                                                    target_dim,
-                                                                                    long_term_memory,
-                                                                                    h_prev_time,
-                                                                                    c_prev_time)
-
-                                # blend bottom right
-                                cur_t_tile_label_pred_blend_11 = blend_bottom_right(t,
-                                                                                    i,
-                                                                                    device,
-                                                                                    lmsi_model,
-                                                                                    cur_t_image_block,
-                                                                                    cur_t_tile_label_pred,
-                                                                                    image_tile_height,
-                                                                                    image_tile_width,
-                                                                                    label_tile_height,
-                                                                                    label_tile_width,
-                                                                                    num_tile_column,
-                                                                                    target_dim,
-                                                                                    long_term_memory,
-                                                                                    h_prev_time,
-                                                                                    c_prev_time)
-
-                                # replace with the blended result
-                                cur_t_tile_label_pred_blend[:label_tile_height//2, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_00
-                                cur_t_tile_label_pred_blend[:label_tile_height//2, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_01
-                                cur_t_tile_label_pred_blend[label_tile_height//2:, :label_tile_width//2, :] = cur_t_tile_label_pred_blend_10
-                                cur_t_tile_label_pred_blend[label_tile_height//2:, label_tile_width//2:, :] = cur_t_tile_label_pred_blend_11
-
-                                # stitch the blended tiles
-                                cur_t_stitched_label_pred_blend[h*label_tile_height:(h+1)*label_tile_height,
-                                                                w*label_tile_width:(w+1)*label_tile_width,
-                                                                :] \
-                                    = cur_t_tile_label_pred_blend
-                        elif network_model == 'memory-piv-net-no-neighbor':
-                            cur_t_stitched_image[h*label_tile_height:(h+1)*label_tile_height,
-                                                w*label_tile_width:(w+1)*label_tile_width,
-                                                :] \
-                                = cur_t_tile_block.permute(0, 2, 3, 1)[0,:, :, time_span//2:time_span//2+1].cpu().numpy()
-
-                            cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
+                            if all_test_label_sequences != None:
+                                cur_t_stitched_label_true[h*label_tile_height:(h+1)*label_tile_height,
                                                     w*label_tile_width:(w+1)*label_tile_width,
                                                     :] \
                                 = cur_t_tile_label_true
-
-                            cur_t_stitched_label_pred[h*label_tile_height:(h+1)*label_tile_height,
-                                                    w*label_tile_width:(w+1)*label_tile_width,
-                                                    :] \
-                                = cur_t_tile_label_pred
-
-                    if long_term_memory:
-                        h_prev_time = h_cur_time
-                        c_prev_time = c_cur_time
 
                 # scale the result from [0, 256] to [0, 1]
                 cur_t_stitched_label_pred = cur_t_stitched_label_pred / final_size
-                cur_t_stitched_label_true = cur_t_stitched_label_true / final_size
-                if blend or blend_new:
+                if all_test_label_sequences != None:
+                    cur_t_stitched_label_true = cur_t_stitched_label_true / final_size
+                if blend:
                     cur_t_stitched_label_pred_blend = cur_t_stitched_label_pred_blend / final_size
 
-                # compute loss
-                if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
-                    loss_unblend = loss_module(torch.from_numpy(cur_t_stitched_label_pred), torch.from_numpy(cur_t_stitched_label_true))
-                    if loss == 'RMSE':
-                        loss_unblend = torch.sqrt(loss_unblend)
-                elif loss == 'AEE':
-                    sum_endpoint_error = 0
-                    for i in range(final_size):
-                        for j in range(final_size):
-                            cur_pred = cur_t_stitched_label_pred[i, j]
-                            cur_true = cur_t_stitched_label_true[i, j]
-                            cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
-                            sum_endpoint_error += cur_endpoint_error
-
-                    loss_unblend = sum_endpoint_error / (final_size*final_size)
-                # customized metric that converts into polar coordinates and compare
-                elif loss == 'polar':
-                    # convert both truth and predictions to polar coordinate
-                    cur_t_stitched_label_true_polar = tools.cart2pol(cur_t_stitched_label_true)
-                    cur_t_stitched_label_pred_polar = tools.cart2pol(cur_t_stitched_label_pred)
-                    # absolute magnitude difference and angle difference
-                    r_diff_mean = np.abs(cur_t_stitched_label_true_polar[:, :, 0]-cur_t_stitched_label_pred_polar[:, :, 0]).mean()
-                    theta_diff = np.abs(cur_t_stitched_label_true_polar[:, :, 1]-cur_t_stitched_label_pred_polar[:, :, 1])
-                    # wrap around for angles larger than pi
-                    theta_diff[theta_diff>2*np.pi] = 2*np.pi - theta_diff[theta_diff>2*np.pi]
-                    # compute the mean of angle difference
-                    theta_diff_mean = theta_diff.mean()
-                    # take the sum as single scalar loss
-                    loss_unblend = r_diff_mean + theta_diff_mean
-
-
-                all_losses.append(loss_unblend)
-                print(f'\nInference {loss} of unblended image t={t-9//2} is {loss_unblend}')
-
-                # absolute error for plotting magnitude
-                pred_error_unblend = np.sqrt((cur_t_stitched_label_pred[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
-                                                + (cur_t_stitched_label_pred[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
-
-                if blend or blend_new:
+                # compute loss if ground truth is given
+                if all_test_label_sequences != None:
                     if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
-                        loss_blend = loss_module(torch.from_numpy(cur_t_stitched_label_pred_blend), torch.from_numpy(cur_t_stitched_label_true))
+                        loss_unblend = loss_module(torch.from_numpy(cur_t_stitched_label_pred), torch.from_numpy(cur_t_stitched_label_true))
                         if loss == 'RMSE':
-                            loss_blend = torch.sqrt(loss_blend)
+                            loss_unblend = torch.sqrt(loss_unblend)
                     elif loss == 'AEE':
-                        sum_endpoint_error_blend = 0
+                        sum_endpoint_error = 0
                         for i in range(final_size):
                             for j in range(final_size):
-                                cur_pred_blend = cur_t_stitched_label_pred_blend[i, j]
+                                cur_pred = cur_t_stitched_label_pred[i, j]
                                 cur_true = cur_t_stitched_label_true[i, j]
-                                cur_endpoint_error_blend = np.linalg.norm(cur_pred_blend-cur_true)
-                                sum_endpoint_error_blend += cur_endpoint_error_blend
+                                cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
+                                sum_endpoint_error += cur_endpoint_error
 
-                        loss_blend = sum_endpoint_error_blend / (final_size*final_size)
+                        loss_unblend = sum_endpoint_error / (final_size*final_size)
                     # customized metric that converts into polar coordinates and compare
                     elif loss == 'polar':
                         # convert both truth and predictions to polar coordinate
                         cur_t_stitched_label_true_polar = tools.cart2pol(cur_t_stitched_label_true)
-                        cur_t_stitched_label_pred_blend_polar = tools.cart2pol(cur_t_stitched_label_pred_blend)
+                        cur_t_stitched_label_pred_polar = tools.cart2pol(cur_t_stitched_label_pred)
                         # absolute magnitude difference and angle difference
-                        r_diff_mean_blend = np.abs(cur_t_stitched_label_true_polar[:, :, 0]-cur_t_stitched_label_pred_blend_polar[:, :, 0]).mean()
-                        theta_diff_blend = np.abs(cur_t_stitched_label_true_polar[:, :, 1]-cur_t_stitched_label_pred_blend_polar[:, :, 1])
+                        r_diff_mean = np.abs(cur_t_stitched_label_true_polar[:, :, 0]-cur_t_stitched_label_pred_polar[:, :, 0]).mean()
+                        theta_diff = np.abs(cur_t_stitched_label_true_polar[:, :, 1]-cur_t_stitched_label_pred_polar[:, :, 1])
                         # wrap around for angles larger than pi
-                        theta_diff_blend[theta_diff_blend>2*np.pi] = 2*np.pi - theta_diff_blend[theta_diff_blend>2*np.pi]
+                        theta_diff[theta_diff>2*np.pi] = 2*np.pi - theta_diff[theta_diff>2*np.pi]
                         # compute the mean of angle difference
-                        theta_diff_mean_blend = theta_diff_blend.mean()
+                        theta_diff_mean = theta_diff.mean()
                         # take the sum as single scalar loss
-                        loss_blend = r_diff_mean_blend + theta_diff_mean_blend
+                        loss_unblend = r_diff_mean + theta_diff_mean
 
-                    all_losses_blend.append(loss_blend)
-                    print(f'\nInference {loss} of blended image t={t-9//2} is {loss_blend}')
 
-                    # error for plotting magnitude
-                    pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
-                                                + (cur_t_stitched_label_pred_blend[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
+                    all_losses.append(loss_unblend)
+                    print(f'\nInference {loss} of unblended image t={t-9//2} is {loss_unblend}')
+
+                    # absolute error for plotting magnitude
+                    pred_error_unblend = np.sqrt((cur_t_stitched_label_pred[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
+                                                    + (cur_t_stitched_label_pred[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
+
+                    if blend:
+                        if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
+                            loss_blend = loss_module(torch.from_numpy(cur_t_stitched_label_pred_blend), torch.from_numpy(cur_t_stitched_label_true))
+                            if loss == 'RMSE':
+                                loss_blend = torch.sqrt(loss_blend)
+                        elif loss == 'AEE':
+                            sum_endpoint_error_blend = 0
+                            for i in range(final_size):
+                                for j in range(final_size):
+                                    cur_pred_blend = cur_t_stitched_label_pred_blend[i, j]
+                                    cur_true = cur_t_stitched_label_true[i, j]
+                                    cur_endpoint_error_blend = np.linalg.norm(cur_pred_blend-cur_true)
+                                    sum_endpoint_error_blend += cur_endpoint_error_blend
+
+                            loss_blend = sum_endpoint_error_blend / (final_size*final_size)
+                        # customized metric that converts into polar coordinates and compare
+                        elif loss == 'polar':
+                            # convert both truth and predictions to polar coordinate
+                            cur_t_stitched_label_true_polar = tools.cart2pol(cur_t_stitched_label_true)
+                            cur_t_stitched_label_pred_blend_polar = tools.cart2pol(cur_t_stitched_label_pred_blend)
+                            # absolute magnitude difference and angle difference
+                            r_diff_mean_blend = np.abs(cur_t_stitched_label_true_polar[:, :, 0]-cur_t_stitched_label_pred_blend_polar[:, :, 0]).mean()
+                            theta_diff_blend = np.abs(cur_t_stitched_label_true_polar[:, :, 1]-cur_t_stitched_label_pred_blend_polar[:, :, 1])
+                            # wrap around for angles larger than pi
+                            theta_diff_blend[theta_diff_blend>2*np.pi] = 2*np.pi - theta_diff_blend[theta_diff_blend>2*np.pi]
+                            # compute the mean of angle difference
+                            theta_diff_mean_blend = theta_diff_blend.mean()
+                            # take the sum as single scalar loss
+                            loss_blend = r_diff_mean_blend + theta_diff_mean_blend
+
+                        all_losses_blend.append(loss_blend)
+                        print(f'\nInference {loss} of blended image t={t-9//2} is {loss_blend}')
+
+                        # error for plotting magnitude
+                        pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
+                                                    + (cur_t_stitched_label_pred_blend[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
 
                 # save the input image, ground truth, prediction, and difference
                 if draw_normal:
                     cur_t_test_image = cur_t_stitched_image[:, :, 0].astype(np.uint8).reshape((final_size, final_size))
-                    # visualize the true velocity field
-                    cur_t_flow_true, max_vel = plot.visualize_flow(cur_t_stitched_label_true)
-                    print(f'Label max vel magnitude is {max_vel}')
-                    # visualize the pred velocity field with truth's saturation range
-                    cur_t_flow_pred, _ = plot.visualize_flow(cur_t_stitched_label_pred, max_vel=max_vel)
+                    # visualize the true velocity field if provided
+                    if all_test_label_sequences != None:
+                        cur_t_flow_true, max_vel = plot.visualize_flow(cur_t_stitched_label_true)
+                        print(f'Label max vel magnitude is {max_vel}')
+                        # visualize the pred velocity field with truth's saturation range
+                        cur_t_flow_pred, _ = plot.visualize_flow(cur_t_stitched_label_pred, max_vel=max_vel)
+                    else:
+                        # we don't have ground truth, thus no ground truth max velocity
+                        cur_t_flow_pred, max_vel = plot.visualize_flow(cur_t_stitched_label_pred)
 
                     # convert to Image
                     cur_t_test_image = Image.fromarray(cur_t_test_image)
-                    cur_t_flow_true = Image.fromarray(cur_t_flow_true)
                     cur_t_flow_pred = Image.fromarray(cur_t_flow_pred)
 
-                    # superimpose quiver plot on color-coded images
-                    # ground truth
+                    # used for superimposing quiver plot on color-coded images
                     x = np.linspace(0, final_size-1, final_size)
                     y = np.linspace(0, final_size-1, final_size)
                     y_pos, x_pos = np.meshgrid(x, y)
                     skip = 8
-                    plt.figure(figsize=(5, 5))
-                    plt.imshow(cur_t_flow_true)
-                    Q = plt.quiver(y_pos[::skip, ::skip],
-                                    x_pos[::skip, ::skip],
-                                    cur_t_stitched_label_true[::skip, ::skip, 0]/max_vel,
-                                    -cur_t_stitched_label_true[::skip, ::skip, 1]/max_vel,
-                                    scale=4.0,
-                                    scale_units='inches')
-                    Q._init()
-                    assert isinstance(Q.scale, float)
-                    plt.axis('off')
-                    true_quiver_path = os.path.join(figs_dir, f'true_{t-9//2}.svg')
-                    plt.savefig(true_quiver_path, bbox_inches='tight', dpi=1200)
-                    print(f'ground truth quiver plot has been saved to {true_quiver_path}')
+
+                    # https://www.infobyip.com/detectmonitordpi.php
+                    my_dpi = 100
+
+                    # ground truth
+                    if all_test_label_sequences != None:
+                        cur_t_flow_true = Image.fromarray(cur_t_flow_true)
+                        plt.figure(figsize=(15, 15))
+                        plt.imshow(cur_t_flow_true)
+                        Q = plt.quiver(y_pos[::skip, ::skip],
+                                        x_pos[::skip, ::skip],
+                                        cur_t_stitched_label_true[::skip, ::skip, 0]/max_vel,
+                                        -cur_t_stitched_label_true[::skip, ::skip, 1]/max_vel,
+                                        scale=4.0,
+                                        scale_units='inches')
+                        Q._init()
+                        assert isinstance(Q.scale, float)
+                        plt.axis('off')
+                        plt.gca().set_axis_off()
+                        plt.gca().xaxis.set_major_locator(plt.NullLocator())
+                        plt.gca().yaxis.set_major_locator(plt.NullLocator())
+                        true_quiver_path = os.path.join(figs_dir, f'true_{t-9//2}.svg')
+                        plt.savefig(true_quiver_path, bbox_inches='tight', dpi=my_dpi)
+                        print(f'ground truth quiver plot has been saved to {true_quiver_path}')
 
                     # unblended results
-                    plt.figure(figsize=(5, 5))
+                    plt.figure(figsize=(15, 15))
                     plt.imshow(cur_t_flow_pred)
+                    plt.axis('off')
+                    # annotate error if ground truth is provided
+                    if all_test_label_sequences != None:
+                        if loss == 'polar':
+                            plt.annotate(f'Magnitude MAE: ' + '{:.3f}'.format(r_diff_mean), (5, 10), color='white', fontsize='medium')
+                            plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean), (5, 20), color='white', fontsize='medium')
+                        else:
+                            plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
+
+                    unblend_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_unblend.svg')
+                    plt.gca().set_axis_off()
+                    plt.gca().xaxis.set_major_locator(plt.NullLocator())
+                    plt.gca().yaxis.set_major_locator(plt.NullLocator())
+                    plt.savefig(unblend_path, bbox_inches='tight', dpi=my_dpi)
+                    print(f'unblend plot has been saved to {unblend_path}')
+                    # add quiver
                     plt.quiver(y_pos[::skip, ::skip],
                                 x_pos[::skip, ::skip],
                                 cur_t_stitched_label_pred[::skip, ::skip, 0]/max_vel,
                                 -cur_t_stitched_label_pred[::skip, ::skip, 1]/max_vel,
                                 scale=4.0,
                                 scale_units='inches')
-                    plt.axis('off')
-                    # annotate error
-                    if loss == 'polar':
-                        plt.annotate(f'Magnitude MAE: ' + '{:.3f}'.format(r_diff_mean), (5, 10), color='white', fontsize='medium')
-                        plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean), (5, 20), color='white', fontsize='medium')
-                    else:
-                        plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
-
-                    unblend_quiver_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_unblend.svg')
-                    plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=1200)
+                    unblend_quiver_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_quiver_unblend.svg')
+                    plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=my_dpi)
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
 
                     # visualize and save the AEE
-                    aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.svg')
-                    plot.visualize_AEE(pred_error_unblend, aee_path)
+                    if all_test_label_sequences != None:
+                        aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.svg')
+                        plot.visualize_AEE(pred_error_unblend, aee_path)
 
                     # same kind of plot for blended predictions
-                    if blend or blend_new:
+                    if blend:
                         # prediction visualization
                         cur_t_flow_pred_blend, _ = plot.visualize_flow(cur_t_stitched_label_pred_blend, max_vel=max_vel)
                         cur_t_flow_pred_blend = Image.fromarray(cur_t_flow_pred_blend)
-                        plt.figure(figsize=(5, 5))
+                        plt.figure(figsize=(15, 15))
                         plt.imshow(cur_t_flow_pred_blend)
+                        plt.axis('off')
+                        # annotate error
+                        if all_test_label_sequences != None:
+                            if loss == 'polar':
+                                plt.annotate(f'Magnitude MAE: ' + '{:.3f}'.format(r_diff_mean_blend), (5, 10), color='white', fontsize='medium')
+                                plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean_blend), (5, 20), color='white', fontsize='medium')
+                            else:
+                                plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
+
+                        blend_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_blend.svg')
+                        plt.gca().set_axis_off()
+                        plt.gca().xaxis.set_major_locator(plt.NullLocator())
+                        plt.gca().yaxis.set_major_locator(plt.NullLocator())
+                        plt.savefig(blend_path, bbox_inches='tight', dpi=my_dpi)
+                        print(f'blended plot has been saved to {blend_path}')
+                        # add quiver
                         plt.quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
                                     cur_t_stitched_label_pred_blend[::skip, ::skip, 0]/max_vel,
                                     -cur_t_stitched_label_pred_blend[::skip, ::skip, 1]/max_vel,
                                     scale=4.0,
                                     scale_units='inches')
-                        plt.axis('off')
-                        # annotate error
-                        if loss == 'polar':
-                            plt.annotate(f'Magnitude MAE: ' + '{:.3f}'.format(r_diff_mean_blend), (5, 10), color='white', fontsize='medium')
-                            plt.annotate(f'Angle MAE: ' + '{:.3f}'.format(theta_diff_mean_blend), (5, 20), color='white', fontsize='medium')
-                        else:
-                            plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
-
-                        blend_quiver_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_blend.svg')
-                        plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=1200)
+                        blend_quiver_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_pred_quiver_blend.svg')
+                        plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=my_dpi)
                         print(f'blended quiver plot has been saved to {blend_quiver_path}')
 
                         # AEE
-                        aee_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.svg')
-                        plot.visualize_AEE(pred_error_blend, aee_path_blend)
-
-
+                        if all_test_label_sequences != None:
+                            aee_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.svg')
+                            plot.visualize_AEE(pred_error_blend, aee_path_blend)
 
                     # finally save the testing image
                     if vorticity:
                         test_image_path = os.path.join(figs_dir, f'test_vorticity_{t-9//2}.png')
                     else:
-                        test_image_path = os.path.join(figs_dir, f'test_{t-9//2}.png')
+                        test_image_path = os.path.join(figs_dir, f'test_velocity_{t-9//2}.png')
                     cur_t_test_image.save(test_image_path)
                     print(f'Test image has been saved to {test_image_path}')
 
+                # save the resulting velocity/vorticity fields
+                if save_results:
+                    if vorticity:
+                        result_path = os.path.join(figs_dir, f'test_vorticity_{t-9//2}.npz')
+                        np.savez(result_path,
+                                vorticity=cur_t_stitched_label_pred)
+                        print(f'Unblend vorticity has been saved to {result_path}')
 
-            min_loss = np.min(all_losses)
-            min_loss_index = np.where(all_losses == min_loss)
-            avg_loss = np.mean(all_losses)
-            print(f'\nAverage unblended {loss} is {avg_loss}')
-            print(f'Min unblended {loss} is {min_loss} at t={min_loss_index}\n')
-            # save all the losses to file
-            if vorticity:
-                loss_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.npy')
-            else:
-                loss_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.npy')
-            np.save(loss_path, all_losses)
-            # generate loss curve plot
-            t = np.arange(start_t, end_t+1)
-            fig, ax = plt.subplots()
-            ax.plot(t, all_losses)
-            ax.set(xlabel='timestamp', ylabel=f'{loss}')
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            if vorticity:
-                loss_curve_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.svg')
-            else:
-                loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.svg')
-            fig.savefig(loss_curve_path, bbox_inches='tight')
+                        if blend:
+                            result_blend_path = os.path.join(figs_dir, f'test_vorticity_blend_{t-9//2}.npz')
+                            np.savez(result_blend_path,
+                                    vorticity=cur_t_stitched_label_pred_blend)
+                            print(f'Blend vorticity has been saved to {result_path}')
+                    else:
+                        result_path = os.path.join(figs_dir, f'test_velocity_{t-9//2}.npz')
+                        np.savez(result_path,
+                                velocity=cur_t_stitched_label_pred)
+                        print(f'Unblend velocity has been saved to {result_path}')
 
-            if blend or blend_new:
-                min_loss_blend = np.min(all_losses_blend)
-                min_loss_index_blend = np.where(all_losses_blend == min_loss_blend)
-                avg_loss_blend = np.mean(all_losses_blend)
-                print(f'Average blended {loss} is {avg_loss_blend}')
-                print(f'Min blended {loss} is {min_loss_blend} at t={min_loss_index_blend}')
-                loss_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.npy')
-                np.save(loss_path_blend, all_losses_blend)
+                        if blend:
+                            result_blend_path = os.path.join(figs_dir, f'test_velocity_blend_{t-9//2}.npz')
+                            np.savez(result_blend_path,
+                                    velocity=cur_t_stitched_label_pred_blend)
+                            print(f'Blend velocity has been saved to {result_blend_path}')
+
+
+            if all_test_label_sequences != None:
+                min_loss = np.min(all_losses)
+                min_loss_index = np.where(all_losses == min_loss)
+                avg_loss = np.mean(all_losses)
+                print(f'\nAverage unblended {loss} is {avg_loss}')
+                print(f'Min unblended {loss} is {min_loss} at t={min_loss_index}\n')
+                # save all the losses to file
+                if vorticity:
+                    loss_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.npy')
+                else:
+                    loss_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.npy')
+                np.save(loss_path, all_losses)
                 # generate loss curve plot
+                t = np.arange(start_t, end_t+1)
                 fig, ax = plt.subplots()
-                ax.plot(t, all_losses_blend)
+                ax.plot(t, all_losses)
                 ax.set(xlabel='timestamp', ylabel=f'{loss}')
                 ax.xaxis.set_major_locator(MaxNLocator(integer=True))
                 if vorticity:
-                    loss_curve_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
+                    loss_curve_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.svg')
                 else:
-                    loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
+                    loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.svg')
                 fig.savefig(loss_curve_path, bbox_inches='tight')
+
+                if blend:
+                    min_loss_blend = np.min(all_losses_blend)
+                    min_loss_index_blend = np.where(all_losses_blend == min_loss_blend)
+                    avg_loss_blend = np.mean(all_losses_blend)
+                    print(f'Average blended {loss} is {avg_loss_blend}')
+                    print(f'Min blended {loss} is {min_loss_blend} at t={min_loss_index_blend}')
+                    loss_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.npy')
+                    np.save(loss_path_blend, all_losses_blend)
+                    # generate loss curve plot
+                    fig, ax = plt.subplots()
+                    ax.plot(t, all_losses_blend)
+                    ax.set(xlabel='timestamp', ylabel=f'{loss}')
+                    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+                    if vorticity:
+                        loss_curve_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
+                    else:
+                        loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
+                    fig.savefig(loss_curve_path, bbox_inches='tight')
 
 # use when training with long term memroy
 def repackage_hidden(h):
@@ -1404,7 +1366,7 @@ def main():
     parser = argparse.ArgumentParser(description=doc.description)
     # mode (data, train, or test mode)
     parser.add_argument('--mode', required=True, action='store', nargs=1, dest='mode', help=doc.mode)
-    # network method (unet, 3dunet, etc)
+    # network method (memory-piv-net, etc)
     parser.add_argument('-n', '--network-model', action='store', nargs=1, dest='network_model')
     # input dataset ditectory for various non train/test related modes
     parser.add_argument('-i', '--input-dir', action='store', nargs=1, dest='input_dir', help=doc.data_dir)
@@ -2313,7 +2275,8 @@ def main():
             target_dim = 2
         loss = args.loss[0]
         long_term_memory = args.long_term_memory
-        final_size = 256
+        # final_size = 256
+        final_size = 1024
 
         # sanity check to make sure network model and data type are compatible
         if network_model == 'memory-piv-net':
@@ -2331,21 +2294,26 @@ def main():
 
             all_test_image_sequences = []
             all_test_label_sequences = []
+            ground_truth_available = False
             for i in range(len(list(test_dataset.keys()))):
                 if list(test_dataset.keys())[i].startswith('image'):
                     all_test_image_sequences.append(test_dataset.get(list(test_dataset.keys())[i]))
                 elif list(test_dataset.keys())[i].startswith('label'):
+                    ground_truth_available = True
                     all_test_label_sequences.append(test_dataset.get(list(test_dataset.keys())[i]))
 
             all_test_image_sequences = np.array(all_test_image_sequences)
-            all_test_label_sequences = np.array(all_test_label_sequences)
+            if ground_truth_available == True:
+                all_test_label_sequences = np.array(all_test_label_sequences)
 
             # prepare pytorch dataset
             all_test_image_sequences = torch.from_numpy(all_test_image_sequences).float().permute(0, 1, 2, 5, 3, 4)
-            all_test_label_sequences = torch.from_numpy(all_test_label_sequences).float().permute(0, 1, 2, 5, 3, 4)
+            if ground_truth_available == True:
+                all_test_label_sequences = torch.from_numpy(all_test_label_sequences).float().permute(0, 1, 2, 5, 3, 4)
 
             # parameters loaded from input data
-            tile_size = (all_test_label_sequences.shape[4], all_test_label_sequences.shape[5])
+            tile_size = (64, 64)
+            # tile_size = (all_test_label_sequences.shape[4], all_test_label_sequences.shape[5])
             num_channels = all_test_image_sequences.shape[-3]
             num_tiles_per_image = all_test_image_sequences.shape[1]
         elif data_type == 'image-pair':
@@ -2374,7 +2342,8 @@ def main():
                 print(f'num_tiles_per_image: {num_tiles_per_image}')
                 # print(f'\n{num_test_sequences} sequences of testing data is detected')
                 print(f'all_test_image_sequences has shape {all_test_image_sequences.shape}')
-                print(f'all_test_label_sequences has shape {all_test_label_sequences.shape}')
+                if ground_truth_available == True:
+                    print(f'all_test_label_sequences has shape {all_test_label_sequences.shape}')
             elif data_type == 'image-pair':
                 print(f'test_data has shape: {test_data.shape}')
                 print(f'test_labels has shape: {test_labels.shape}')
@@ -2385,10 +2354,11 @@ def main():
             # MHD 25, Isotropic 41
             print(f'Testing from t = {start_t} to {end_t} (both side inclusive)')
             start = time.time()
+            if ground_truth_available == False:
+                all_test_label_sequences = None
 
             run_test(network_model,
                     all_test_image_sequences,
-                    all_test_label_sequences,
                     model_dir,
                     figs_dir,
                     loss,
@@ -2396,16 +2366,18 @@ def main():
                     end_t,
                     num_channels,
                     time_span,
+                    tile_size,
                     target_dim,
                     num_tiles_per_image,
                     final_size,
                     device,
                     long_term_memory,
                     vorticity,
-                    blend=False,
-                    blend_new=True,
+                    all_test_label_sequences,
+                    blend=True,
                     draw_normal=True,
-                    draw_glyph=False)
+                    draw_glyph=False,
+                    save_results=True)
 
             end = time.time()
             print(f'\nModel inference on image [{start_t}:{end_t}] completed, time cost: {end-start} seconds\n')
