@@ -1176,31 +1176,33 @@ def run_test(network_model,
                     cur_t_flow_pred = Image.fromarray(cur_t_flow_pred)
 
                     # used for superimposing quiver plot on color-coded images
+                    skip = 40
+                    # col
                     x = np.linspace(0, final_size[1]-1, final_size[1])
+                    # row
                     y = np.linspace(0, final_size[0]-1, final_size[0])
-                    y_pos, x_pos = np.meshgrid(x, y)
-                    skip = 8
+                    x_pos, y_pos = np.meshgrid(x, y)
 
                     # https://www.infobyip.com/detectmonitordpi.php
-                    my_dpi = 100
+                    my_dpi = 288
 
                     # ground truth
                     if all_test_label_sequences != None:
                         cur_t_flow_true = Image.fromarray(cur_t_flow_true)
                         plt.figure(figsize=(15, 15))
                         plt.imshow(cur_t_flow_true)
-                        Q = plt.quiver(y_pos[::skip, ::skip],
-                                        x_pos[::skip, ::skip],
+                        Q = plt.quiver(x_pos[::skip, ::skip],
+                                        y_pos[::skip, ::skip],
                                         cur_t_stitched_label_true[::skip, ::skip, 0]/max_vel,
                                         -cur_t_stitched_label_true[::skip, ::skip, 1]/max_vel,
-                                        scale=4.0,
+                                        scale=2.0,
                                         scale_units='inches')
                         Q._init()
                         assert isinstance(Q.scale, float)
                         plt.axis('off')
-                        plt.gca().set_axis_off()
-                        plt.gca().xaxis.set_major_locator(plt.NullLocator())
-                        plt.gca().yaxis.set_major_locator(plt.NullLocator())
+                        # plt.gca().set_axis_off()
+                        # plt.gca().xaxis.set_major_locator(plt.NullLocator())
+                        # plt.gca().yaxis.set_major_locator(plt.NullLocator())
                         true_quiver_path = os.path.join(figs_dir, f'true_{t-9//2}.png')
                         plt.savefig(true_quiver_path, bbox_inches='tight', dpi=my_dpi)
                         print(f'ground truth quiver plot has been saved to {true_quiver_path}')
@@ -1218,17 +1220,17 @@ def run_test(network_model,
                             plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
 
                     unblend_path = os.path.join(figs_dir, 'unblend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_unblend.svg')
-                    plt.gca().set_axis_off()
-                    plt.gca().xaxis.set_major_locator(plt.NullLocator())
-                    plt.gca().yaxis.set_major_locator(plt.NullLocator())
+                    # plt.gca().set_axis_off()
+                    # plt.gca().xaxis.set_major_locator(plt.NullLocator())
+                    # plt.gca().yaxis.set_major_locator(plt.NullLocator())
                     plt.savefig(unblend_path, bbox_inches='tight', dpi=my_dpi)
                     print(f'unblend plot has been saved to {unblend_path}')
                     # add quiver
-                    plt.quiver(y_pos[::skip, ::skip],
-                                x_pos[::skip, ::skip],
+                    plt.quiver(x_pos[::skip, ::skip],
+                                y_pos[::skip, ::skip],
                                 cur_t_stitched_label_pred[::skip, ::skip, 0]/max_vel,
                                 -cur_t_stitched_label_pred[::skip, ::skip, 1]/max_vel,
-                                scale=4.0,
+                                scale=2.0,
                                 scale_units='inches')
                     unblend_quiver_path = os.path.join(figs_dir, 'unblend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_unblend.svg')
                     plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=my_dpi)
@@ -1256,17 +1258,17 @@ def run_test(network_model,
                                 plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
 
                         blend_path = os.path.join(figs_dir, 'blend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_blend.svg')
-                        plt.gca().set_axis_off()
-                        plt.gca().xaxis.set_major_locator(plt.NullLocator())
-                        plt.gca().yaxis.set_major_locator(plt.NullLocator())
+                        # plt.gca().set_axis_off()
+                        # plt.gca().xaxis.set_major_locator(plt.NullLocator())
+                        # plt.gca().yaxis.set_major_locator(plt.NullLocator())
                         plt.savefig(blend_path, bbox_inches='tight', dpi=my_dpi)
                         print(f'blended plot has been saved to {blend_path}')
                         # add quiver
-                        plt.quiver(y_pos[::skip, ::skip],
-                                    x_pos[::skip, ::skip],
+                        plt.quiver(x_pos[::skip, ::skip],
+                                    y_pos[::skip, ::skip],
                                     cur_t_stitched_label_pred_blend[::skip, ::skip, 0]/max_vel,
                                     -cur_t_stitched_label_pred_blend[::skip, ::skip, 1]/max_vel,
-                                    scale=4.0,
+                                    scale=2.0,
                                     scale_units='inches')
                         blend_quiver_path = os.path.join(figs_dir, 'blend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_blend.svg')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=my_dpi)
