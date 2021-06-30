@@ -1214,7 +1214,7 @@ def run_test(network_model,
                         else:
                             plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
 
-                    unblend_path = os.path.join(figs_dir, 'unblend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_unblend.png')
+                    unblend_path = os.path.join(figs_dir, 'unblend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_unblend.svg')
                     plt.gca().set_axis_off()
                     plt.gca().xaxis.set_major_locator(plt.NullLocator())
                     plt.gca().yaxis.set_major_locator(plt.NullLocator())
@@ -1227,13 +1227,13 @@ def run_test(network_model,
                                 -cur_t_stitched_label_pred[::skip, ::skip, 1]/max_vel,
                                 scale=4.0,
                                 scale_units='inches')
-                    unblend_quiver_path = os.path.join(figs_dir, 'unblend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_unblend.png')
+                    unblend_quiver_path = os.path.join(figs_dir, 'unblend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_unblend.svg')
                     plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=my_dpi)
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
 
                     # visualize and save the AEE
                     if all_test_label_sequences != None:
-                        aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.png')
+                        aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.svg')
                         plot.visualize_AEE(pred_error_unblend, aee_path)
 
                     # same kind of plot for blended predictions
@@ -1252,7 +1252,7 @@ def run_test(network_model,
                             else:
                                 plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
 
-                        blend_path = os.path.join(figs_dir, 'blend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_blend.png')
+                        blend_path = os.path.join(figs_dir, 'blend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_blend.svg')
                         plt.gca().set_axis_off()
                         plt.gca().xaxis.set_major_locator(plt.NullLocator())
                         plt.gca().yaxis.set_major_locator(plt.NullLocator())
@@ -1265,13 +1265,13 @@ def run_test(network_model,
                                     -cur_t_stitched_label_pred_blend[::skip, ::skip, 1]/max_vel,
                                     scale=4.0,
                                     scale_units='inches')
-                        blend_quiver_path = os.path.join(figs_dir, 'blend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_blend.png')
+                        blend_quiver_path = os.path.join(figs_dir, 'blend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_blend.svg')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=my_dpi)
                         print(f'blended quiver plot has been saved to {blend_quiver_path}')
 
                         # AEE
                         if all_test_label_sequences != None:
-                            aee_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.png')
+                            aee_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.svg')
                             plot.visualize_AEE(pred_error_blend, aee_path_blend)
 
                     # finally save the testing image
