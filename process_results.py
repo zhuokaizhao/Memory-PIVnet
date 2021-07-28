@@ -255,7 +255,7 @@ for i in tqdm(vis_frame):
         # save the image
         test_quiver_dir = os.path.join(figs_dir, 'test_quiver')
         os.makedirs(test_quiver_dir, exist_ok=True)
-        test_quiver_path = os.path.join(test_quiver_dir, f'test_quiver_{i}.png')
+        test_quiver_path = os.path.join(test_quiver_dir, f'test_quiver_{str(i).zfill(4)}.png')
         plt.savefig(test_quiver_path, bbox_inches='tight', dpi=500)
         # print(f'\nSuperimposed test quiver plot has been saved to {test_quiver_path}')
 
@@ -379,7 +379,7 @@ for i in tqdm(vis_frame):
         # save the image
         color_encoded_dir = os.path.join(figs_dir, 'color_encoded')
         os.makedirs(color_encoded_dir, exist_ok=True)
-        color_encoded_path = os.path.join(color_encoded_dir, f'color_encoded_{i}.png')
+        color_encoded_path = os.path.join(color_encoded_dir, f'color_encoded_{str(i).zfill(4)}.png')
         plt.savefig(color_encoded_path, bbox_inches='tight', dpi=500)
         # print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
 
@@ -546,7 +546,7 @@ for i in tqdm(vis_frame):
         # save the image
         energy_dir = os.path.join(figs_dir, 'energy_plot')
         os.makedirs(energy_dir, exist_ok=True)
-        energy_path = os.path.join(energy_dir, f'energy_{i}.png')
+        energy_path = os.path.join(energy_dir, f'energy_{str(i).zfill(4)}.png')
         plt.savefig(energy_path, bbox_inches='tight', dpi=500)
         # print(f'\nEnergy plot has been saved to {energy_path}')
 
