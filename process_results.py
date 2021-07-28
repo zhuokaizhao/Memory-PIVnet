@@ -22,11 +22,12 @@ def get_energy(velocity):
     return energy
 
 # list of methods
-methods = ['ground_truth', 'memory-piv-net', 'pyramid', 'cross_correlation']
+methods = ['ground_truth', 'memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'cross_correlation']
 
 # corresponding data path or directory
 result_paths = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vel_field/',
                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
+                '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/isotropic1024coarse_x_1_1024_y_1_1024_z_662_762_t_1_5024_tstride_20_pyramid.h5',
                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/cross_correlation/isotropic1024coarse_x_1_1024_y_1_1024_z_662_762_t_1_5024_tstride_20_standard.h5']
 
@@ -39,8 +40,8 @@ img_size = 256
 figs_dir = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/figs/Isotropic_1024/velocity/'
 
 # different types of visualizations
-plot_image_quiver = False
-plot_color_encoded = False
+plot_image_quiver = True
+plot_color_encoded = True
 plot_energy = True
 
 # different losses
@@ -49,6 +50,7 @@ loss = 'RMSE'
 # loaded velocity fields
 true_velocity = []
 memory_velocity = []
+lfn_velocity = []
 pyramid_velocity = []
 cc_velocity = []
 
@@ -68,6 +70,14 @@ for i, cur_method in enumerate(methods):
             memory_velocity.append(np.load(cur_path)['velocity'])
 
         memory_velocity = np.array(memory_velocity)
+
+    if cur_method == 'LiteFlowNet-en':
+        # load the velocity fields of the specified time range
+        for t in range(load_time_range[0], load_time_range[1]+1):
+            cur_path = os.path.join(result_paths[i], f'lfn_velocity_{t}.npz')
+            lfn_velocity.append(np.load(cur_path)['velocity'])
+
+        lfn_velocity = np.array(lfn_velocity)
 
     # for pyramid and standar methods
     elif cur_method == 'pyramid' or cur_method == 'cross_correlation':
@@ -90,6 +100,7 @@ for i, cur_method in enumerate(methods):
 # print all the shapes
 print(f'\nLoaded ground truth velocity has shape {true_velocity.shape}')
 print(f'Loaded memory-piv-net velocity has shape {memory_velocity.shape}')
+print(f'Loaded LiteFlowNet-en velocity has shape {lfn_velocity.shape}')
 print(f'Loaded pyramid velocity has shape {pyramid_velocity.shape}')
 print(f'Loaded cross-correlation velocity has shape {cc_velocity.shape}')
 
@@ -116,6 +127,7 @@ print(f'Full-resolution cross-correlation velocity has shape {cc_velocity_full_r
 for i in vis_frame:
     cur_true_velocity = true_velocity[i]
     cur_memory_velocity = memory_velocity[i]
+    cur_lfn_velocity = lfn_velocity[i]
     cur_pyramid_velocity = pyramid_velocity_full_res[i]
     cur_cc_velocity = cc_velocity_full_res[i]
 
@@ -168,44 +180,64 @@ for i in vis_frame:
             cur_loss = np.sqrt(np.square(cur_true_velocity - cur_memory_velocity)).mean(axis=None)
         axes[1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
-        # pyramid
+        # predictions
+        # lite-flow-net-en
         axes[2].imshow(test_image, 'gray')
         axes[2].quiver(y_pos[::skip, ::skip],
+                        x_pos[::skip, ::skip],
+                        cur_lfn_velocity[::skip, ::skip, 0]/max_vel,
+                        -cur_lfn_velocity[::skip, ::skip, 1]/max_vel,
+                        scale=Q.scale,
+                        scale_units='inches',
+                        color='green')
+        axes[2].set_title('LiteFlowNet-en')
+        axes[2].set_xlabel('x')
+        axes[2].set_ylabel('y')
+        # compute and annotate loss
+        if loss == 'MSE':
+            cur_loss = np.square(cur_true_velocity - cur_lfn_velocity).mean(axis=None)
+        elif loss == 'RMSE':
+            cur_loss = np.sqrt(np.square(cur_true_velocity - cur_lfn_velocity)).mean(axis=None)
+        axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+
+        # pyramid
+        axes[3].imshow(test_image, 'gray')
+        axes[3].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_pyramid_velocity[::skip, ::skip, 0]/max_vel,
                         -cur_pyramid_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches',
                         color='green')
-        axes[2].set_title('Pyramid (original results scaled 30x)')
-        axes[2].set_xlabel('x')
-        axes[2].set_ylabel('y')
+        axes[3].set_title('Pyramid (original results scaled 30x)')
+        axes[3].set_xlabel('x')
+        axes[3].set_ylabel('y')
         # compute and annotate loss
         if loss == 'MSE':
             cur_loss = np.square(cur_true_velocity - cur_pyramid_velocity).mean(axis=None)
         elif loss == 'RMSE':
             cur_loss = np.sqrt(np.square(cur_true_velocity - cur_pyramid_velocity)).mean(axis=None)
-        axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+        axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
 
         # cross-correlation
-        axes[3].imshow(test_image, 'gray')
-        axes[3].quiver(y_pos[::skip, ::skip],
+        axes[4].imshow(test_image, 'gray')
+        axes[4].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_cc_velocity[::skip, ::skip, 0]/max_vel,
                         -cur_cc_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches',
                         color='green')
-        axes[3].set_title('Cross-correlation (original results scaled 30x)')
-        axes[3].set_xlabel('x')
-        axes[3].set_ylabel('y')
+        axes[4].set_title('Cross-correlation (original results scaled 30x)')
+        axes[4].set_xlabel('x')
+        axes[4].set_ylabel('y')
         # compute and annotate loss
         if loss == 'MSE':
             cur_loss = np.square(cur_true_velocity - cur_cc_velocity).mean(axis=None)
         elif loss == 'RMSE':
             cur_loss = np.sqrt(np.square(cur_true_velocity - cur_cc_velocity)).mean(axis=None)
-        axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+        axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
 
         # save the image
@@ -221,6 +253,8 @@ for i in vis_frame:
         # predictions
         # memory-piv-net
         memory_flow_pred, _ = plot.visualize_flow(cur_memory_velocity, max_vel=max_vel)
+        # lfn
+        lfn_flow_pred, _ = plot.visualize_flow(cur_lfn_velocity, max_vel=max_vel)
         # pyramid
         pyramid_flow_pred, _ = plot.visualize_flow(cur_pyramid_velocity, max_vel=max_vel)
         # cross-correlation
@@ -229,6 +263,7 @@ for i in vis_frame:
         # convert to Image
         cur_flow_true = Image.fromarray(cur_flow_true)
         memory_flow_pred = Image.fromarray(memory_flow_pred)
+        lfn_flow_pred = Image.fromarray(lfn_flow_pred)
         pyramid_flow_pred = Image.fromarray(pyramid_flow_pred)
         cc_flow_pred = Image.fromarray(cc_flow_pred)
 
@@ -273,41 +308,60 @@ for i in vis_frame:
             cur_loss = np.sqrt(np.square(cur_true_velocity - cur_memory_velocity)).mean(axis=None)
         axes[1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
-        # pyramid
-        axes[2].imshow(pyramid_flow_pred)
+        # lite-flow-net-en
+        axes[2].imshow(lfn_flow_pred)
         axes[2].quiver(y_pos[::skip, ::skip],
+                        x_pos[::skip, ::skip],
+                        cur_lfn_velocity[::skip, ::skip, 0]/max_vel,
+                        -cur_lfn_velocity[::skip, ::skip, 1]/max_vel,
+                        scale=Q.scale,
+                        scale_units='inches',
+                        color='green')
+        axes[2].set_title('LiteFlowNet-en')
+        axes[2].set_xlabel('x')
+        axes[2].set_ylabel('y')
+        # compute and annotate loss
+        if loss == 'MSE':
+            cur_loss = np.square(cur_true_velocity - cur_lfn_velocity).mean(axis=None)
+        elif loss == 'RMSE':
+            cur_loss = np.sqrt(np.square(cur_true_velocity - cur_lfn_velocity)).mean(axis=None)
+        axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+
+        # pyramid
+        axes[3].imshow(pyramid_flow_pred)
+        axes[3].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_pyramid_velocity[::skip, ::skip, 0]/max_vel,
                         -cur_pyramid_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches')
-        axes[2].set_title('Pyramid (original results scaled 30x)')
-        axes[2].set_xlabel('x')
-        axes[2].set_ylabel('y')
+        axes[3].set_title('Pyramid (original results scaled 30x)')
+        axes[3].set_xlabel('x')
+        axes[3].set_ylabel('y')
         # compute and annotate loss
         if loss == 'MSE':
             cur_loss = np.square(cur_true_velocity - cur_pyramid_velocity).mean(axis=None)
         elif loss == 'RMSE':
             cur_loss = np.sqrt(np.square(cur_true_velocity - cur_pyramid_velocity)).mean(axis=None)
-        axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+        axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
         # cross-correlation
-        axes[3].imshow(cc_flow_pred)
-        axes[3].quiver(y_pos[::skip, ::skip],
+        axes[4].imshow(cc_flow_pred)
+        axes[4].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_cc_velocity[::skip, ::skip, 0]/max_vel,
                         -cur_cc_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches')
-        axes[3].set_title('Cross-correlation (original results scaled 30x)')
-        axes[3].set_xlabel('x')
-        axes[3].set_ylabel('y')
+        axes[4].set_title('Cross-correlation (original results scaled 30x)')
+        axes[4].set_xlabel('x')
+        axes[4].set_ylabel('y')
         # compute and annotate loss
         if loss == 'MSE':
             cur_loss = np.square(cur_true_velocity - cur_cc_velocity).mean(axis=None)
         elif loss == 'RMSE':
             cur_loss = np.sqrt(np.square(cur_true_velocity - cur_cc_velocity)).mean(axis=None)
-        axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+        axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
         # save the image
         color_encoded_path = os.path.join(figs_dir, f'color_encoded_{i}.png')
@@ -320,6 +374,7 @@ for i in vis_frame:
         # compute energy
         cur_true_energy = get_energy(cur_true_velocity)
         cur_memory_energy = get_energy(cur_memory_velocity)
+        cur_lfn_energy = get_energy(cur_lfn_velocity)
         cur_pyramid_energy = get_energy(cur_pyramid_velocity)
         cur_cc_energy = get_energy(cur_cc_velocity)
 
@@ -369,46 +424,66 @@ for i in vis_frame:
             cur_loss = np.sqrt(np.square(cur_true_energy - cur_memory_energy)).mean(axis=None)
         axes[1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
-        # pyramid
-        axes[2].pcolor(cur_pyramid_energy)
+        # lite-flow-net-en
+        axes[2].pcolor(cur_lfn_energy)
         axes[2].quiver(y_pos[::skip, ::skip],
+                        x_pos[::skip, ::skip],
+                        cur_lfn_velocity[::skip, ::skip, 0]/max_vel,
+                        -cur_lfn_velocity[::skip, ::skip, 1]/max_vel,
+                        scale=Q.scale,
+                        scale_units='inches',
+                        color='green')
+        axes[2].set_title('LiteFlowNet-en')
+        axes[2].set_xlabel('x')
+        axes[2].set_ylabel('y')
+        axes[2].invert_yaxis()
+        # compute and annotate loss
+        if loss == 'MSE':
+            cur_loss = np.square(cur_true_energy - cur_lfn_energy).mean(axis=None)
+        elif loss == 'RMSE':
+            cur_loss = np.sqrt(np.square(cur_true_energy - cur_lfn_energy)).mean(axis=None)
+        axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+
+        # pyramid
+        axes[3].pcolor(cur_pyramid_energy)
+        axes[3].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_pyramid_velocity[::skip, ::skip, 0]/max_vel,
                         -cur_pyramid_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches',
                         color='green')
-        axes[2].set_title('Pyramid (original results scaled 30x)')
-        axes[2].set_xlabel('x')
-        axes[2].set_ylabel('y')
-        axes[2].invert_yaxis()
+        axes[3].set_title('Pyramid (original results scaled 30x)')
+        axes[3].set_xlabel('x')
+        axes[3].set_ylabel('y')
+        axes[3].invert_yaxis()
         # compute and annotate loss
         if loss == 'MSE':
             cur_loss = np.square(cur_true_energy - cur_pyramid_energy).mean(axis=None)
         elif loss == 'RMSE':
             cur_loss = np.sqrt(np.square(cur_true_energy - cur_pyramid_energy)).mean(axis=None)
-        axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+        axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
 
         # cross-correlation
-        axes[3].pcolor(cur_cc_energy)
-        axes[3].quiver(y_pos[::skip, ::skip],
+        axes[4].pcolor(cur_cc_energy)
+        axes[4].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_cc_velocity[::skip, ::skip, 0]/max_vel,
                         -cur_cc_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches',
                         color='green')
-        axes[3].set_title('Cross-correlation (original results scaled 30x)')
-        axes[3].set_xlabel('x')
-        axes[3].set_ylabel('y')
-        axes[3].invert_yaxis()
+        axes[4].set_title('Cross-correlation (original results scaled 30x)')
+        axes[4].set_xlabel('x')
+        axes[4].set_ylabel('y')
+        axes[4].invert_yaxis()
         # compute and annotate loss
         if loss == 'MSE':
             cur_loss = np.square(cur_true_energy - cur_cc_energy).mean(axis=None)
         elif loss == 'RMSE':
             cur_loss = np.sqrt(np.square(cur_true_energy - cur_cc_energy)).mean(axis=None)
-        axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+        axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
 
         # save the image
