@@ -1072,15 +1072,15 @@ def run_test(network_model,
                                                     :] \
                                 = cur_t_tile_label_true
 
-                # scale the result from [0, 64] (tile size) to [0, 1]
-                cur_t_stitched_label_pred[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / tile_size[0]
-                cur_t_stitched_label_pred[:, :, 1] = cur_t_stitched_label_pred[:, :, 1] / tile_size[1]
+                # scale the result from final_size to [0, 1]
+                cur_t_stitched_label_pred[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / final_size[0]
+                cur_t_stitched_label_pred[:, :, 1] = cur_t_stitched_label_pred[:, :, 1] / final_size[0]
                 if all_test_label_sequences != None:
-                    cur_t_stitched_label_true[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / tile_size[0]
-                    cur_t_stitched_label_true[:, :, 1] = cur_t_stitched_label_true[:, :, 1] / tile_size[1]
+                    cur_t_stitched_label_true[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / final_size[0]
+                    cur_t_stitched_label_true[:, :, 1] = cur_t_stitched_label_true[:, :, 1] / final_size[0]
                 if blend:
-                    cur_t_stitched_label_pred_blend[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / tile_size[0]
-                    cur_t_stitched_label_pred_blend[:, :, 1] = cur_t_stitched_label_pred_blend[:, :, 1] / tile_size[1]
+                    cur_t_stitched_label_pred_blend[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / final_size[0]
+                    cur_t_stitched_label_pred_blend[:, :, 1] = cur_t_stitched_label_pred_blend[:, :, 1] / final_size[0]
 
                 # compute loss if ground truth is given
                 if all_test_label_sequences != None:
