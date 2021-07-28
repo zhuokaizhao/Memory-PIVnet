@@ -1321,6 +1321,15 @@ def run_test(network_model,
                                     vorticity=cur_t_stitched_label_pred_blend)
                             print(f'Blend vorticity has been saved to {result_path}')
                     else:
+                        # true velocity field
+                        ground_truth_dir = os.path.join(output_dir, 'true_vel_field')
+                        os.makedirs(ground_truth_dir, exist_ok=True)
+                        ground_truth_path = os.path.join(ground_truth_dir, f'true_velocity_{t-9//2}.npz')
+                        np.savez(ground_truth_path,
+                                velocity=cur_t_stitched_label_true)
+                        print(f'ground truth velocity has been saved to {ground_truth_path}')
+
+                        # unblend predictions
                         result_dir = os.path.join(output_dir, 'unblend_vel_field')
                         os.makedirs(result_dir, exist_ok=True)
                         result_path = os.path.join(result_dir, f'test_velocity_{t-9//2}.npz')
@@ -1328,6 +1337,7 @@ def run_test(network_model,
                                 velocity=cur_t_stitched_label_pred)
                         print(f'Unblend velocity has been saved to {result_path}')
 
+                        # blend predictions
                         if blend:
                             result_blend_dir = os.path.join(output_dir, 'blend_vel_field')
                             os.makedirs(result_blend_dir, exist_ok=True)
