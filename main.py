@@ -1176,7 +1176,7 @@ def run_test(network_model,
                     cur_t_flow_pred = Image.fromarray(cur_t_flow_pred)
 
                     # used for superimposing quiver plot on color-coded images
-                    skip = 32
+                    skip = 7
                     # col
                     x = np.linspace(0, final_size[1]-1, final_size[1])
                     # row
@@ -1203,7 +1203,9 @@ def run_test(network_model,
                         # plt.gca().set_axis_off()
                         # plt.gca().xaxis.set_major_locator(plt.NullLocator())
                         # plt.gca().yaxis.set_major_locator(plt.NullLocator())
-                        true_quiver_path = os.path.join(output_dir, f'true_{t-9//2}.png')
+                        true_quiver_dir = os.path.join(output_dir, 'ground_truth_quiver_plot')
+                        os.makedirs(true_quiver_dir, exist_ok=True)
+                        true_quiver_path = os.path.join(true_quiver_dir, f'true_{t-9//2}.png')
                         plt.savefig(true_quiver_path, bbox_inches='tight', dpi=my_dpi)
                         print(f'ground truth quiver plot has been saved to {true_quiver_path}')
 
@@ -1242,7 +1244,9 @@ def run_test(network_model,
 
                     # visualize and save the AEE
                     if all_test_label_sequences != None:
-                        aee_path = os.path.join(output_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.svg')
+                        unblend_aee_dir = os.path.join(output_dir, 'unblend_aee')
+                        os.makedirs(unblend_aee_dir, exist_ok=True)
+                        aee_path = os.path.join(unblend_aee_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.svg')
                         plot.visualize_AEE(pred_error_unblend, aee_path)
 
                     # same kind of plot for blended predictions
@@ -1284,7 +1288,9 @@ def run_test(network_model,
 
                         # AEE
                         if all_test_label_sequences != None:
-                            aee_path_blend = os.path.join(output_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.svg')
+                            blend_aee_dir = os.path.join(output_dir, 'blend_aee')
+                            os.makedirs(blend_aee_dir, exist_ok=True)
+                            aee_path_blend = os.path.join(blend_aee_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.svg')
                             plot.visualize_AEE(pred_error_blend, aee_path_blend)
 
                     # finally save the testing image
@@ -1323,7 +1329,7 @@ def run_test(network_model,
                         print(f'Unblend velocity has been saved to {result_path}')
 
                         if blend:
-                            result_blend_dir = os.path.join(output_dir, 'unblend_vel_field')
+                            result_blend_dir = os.path.join(output_dir, 'blend_vel_field')
                             os.makedirs(result_blend_dir, exist_ok=True)
                             result_blend_path = os.path.join(result_blend_dir, f'test_velocity_blend_{t-9//2}.npz')
                             np.savez(result_blend_path,
