@@ -5,6 +5,7 @@ import glob
 import h5py
 import numpy as np
 from PIL import Image
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 import plot
@@ -42,6 +43,7 @@ figs_dir = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/figs/Isotropic
 # different types of visualizations
 plot_image_quiver = True
 plot_color_encoded = True
+plot_aee_heatmap = True
 plot_energy = True
 
 # different losses
@@ -368,6 +370,50 @@ for i in vis_frame:
         plt.savefig(color_encoded_path, bbox_inches='tight', dpi=500)
         print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
 
+    # aee heatmap plot
+    if plot_aee_heatmap:
+
+        # average end point error for all the outputs
+        cur_memory_aee = np.sqrt((cur_memory_velocity[:,:,0]-cur_true_velocity[:,:,0])**2 + (cur_memory_velocity[:,:,1]-cur_true_velocity[:,:,1])**2)
+        cur_lfn_aee = np.sqrt((cur_lfn_velocity[:,:,0]-cur_true_velocity[:,:,0])**2 + (cur_lfn_velocity[:,:,1]-cur_true_velocity[:,:,1])**2)
+        cur_pyramid_aee = np.sqrt((cur_pyramid_velocity[:,:,0]-cur_true_velocity[:,:,0])**2 + (cur_pyramid_velocity[:,:,1]-cur_true_velocity[:,:,1])**2)
+        cur_cc_aee = np.sqrt((cur_cc_velocity[:,:,0]-cur_true_velocity[:,:,0])**2 + (cur_cc_velocity[:,:,1]-cur_true_velocity[:,:,1])**2)
+
+        # plot includes four subplots
+        fig, axes = plt.subplots(nrows=1, ncols=len(methods)-1, figsize=(5*(len(methods)-1), 5))
+        cmap_range = [0, 40]
+
+        axes[0].imshow(cur_memory_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
+        axes[0].set_title('Memory-PIVnet')
+        axes[0].set_xlabel('x')
+        axes[0].set_ylabel('y')
+        axes[0].annotate(f'AEE: ' + '{:.3f}'.format(cur_memory_aee.mean()), (5, 10), color='white', fontsize='medium')
+
+        axes[1].imshow(cur_lfn_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
+        axes[1].set_title('LiteFlowNet-en')
+        axes[1].set_xlabel('x')
+        axes[1].set_ylabel('y')
+        axes[1].annotate(f'AEE: ' + '{:.3f}'.format(cur_lfn_aee.mean()), (5, 10), color='white', fontsize='medium')
+
+        axes[2].imshow(cur_pyramid_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
+        axes[2].set_title('Pyramid (original results scaled 30x)')
+        axes[2].set_xlabel('x')
+        axes[2].set_ylabel('y')
+        axes[2].annotate(f'AEE: ' + '{:.3f}'.format(cur_pyramid_aee.mean()), (5, 10), color='white', fontsize='medium')
+
+        im=axes[3].imshow(cur_cc_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
+        axes[3].set_title('Cross-correlation (original results scaled 30x)')
+        axes[3].set_xlabel('x')
+        axes[3].set_ylabel('y')
+        axes[3].annotate(f'AEE: ' + '{:.3f}'.format(cur_cc_aee.mean()), (5, 10), color='white', fontsize='medium')
+
+        cax, kw = mpl.colorbar.make_axes([ax for ax in axes.flat])
+        plt.colorbar(im, cax=cax, **kw)
+
+        aee_path = os.path.join(figs_dir, f'aee_error.png')
+        plt.savefig(aee_path, bbox_inches='tight', dpi=500)
+        print(f'\nAEE plot has been saved to {aee_path}')
+
 
     # energy plot
     if plot_energy:
@@ -381,6 +427,7 @@ for i in vis_frame:
         # plot includes four subplots
         fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
         skip = 7
+        cmap_range = [np.min(cur_true_energy), np.max(cur_true_energy)]
 
         # superimpose quiver plot on color-coded images
         max_vel = np.max(cur_true_velocity)
@@ -388,35 +435,33 @@ for i in vis_frame:
         x = np.linspace(0, img_size-1, img_size)
         y = np.linspace(0, img_size-1, img_size)
         y_pos, x_pos = np.meshgrid(x, y)
-        axes[0].pcolor(cur_true_energy)
+        axes[0].imshow(cur_true_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
         Q = axes[0].quiver(y_pos[::skip, ::skip],
                             x_pos[::skip, ::skip],
                             cur_true_velocity[::skip, ::skip, 0]/max_vel,
                             -cur_true_velocity[::skip, ::skip, 1]/max_vel,
                             # scale=4.0,
                             scale_units='inches',
-                            color='green')
+                            color='black')
         Q._init()
         assert isinstance(Q.scale, float)
         axes[0].set_title('Ground truth')
         axes[0].set_xlabel('x')
         axes[0].set_ylabel('y')
-        axes[0].invert_yaxis()
 
         # predictions
         # memory-piv-net
-        axes[1].pcolor(cur_memory_energy)
+        axes[1].imshow(cur_memory_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
         axes[1].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_memory_velocity[::skip, ::skip, 0]/max_vel,
                         -cur_memory_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches',
-                        color='green')
+                        color='black')
         axes[1].set_title('Memory-PIVnet')
         axes[1].set_xlabel('x')
         axes[1].set_ylabel('y')
-        axes[1].invert_yaxis()
         # compute and annotate loss
         if loss == 'MSE':
             cur_loss = np.square(cur_true_energy - cur_memory_energy).mean(axis=None)
@@ -425,18 +470,17 @@ for i in vis_frame:
         axes[1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
         # lite-flow-net-en
-        axes[2].pcolor(cur_lfn_energy)
+        axes[2].imshow(cur_lfn_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
         axes[2].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_lfn_velocity[::skip, ::skip, 0]/max_vel,
                         -cur_lfn_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches',
-                        color='green')
+                        color='black')
         axes[2].set_title('LiteFlowNet-en')
         axes[2].set_xlabel('x')
         axes[2].set_ylabel('y')
-        axes[2].invert_yaxis()
         # compute and annotate loss
         if loss == 'MSE':
             cur_loss = np.square(cur_true_energy - cur_lfn_energy).mean(axis=None)
@@ -445,18 +489,17 @@ for i in vis_frame:
         axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
         # pyramid
-        axes[3].pcolor(cur_pyramid_energy)
+        axes[3].imshow(cur_pyramid_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
         axes[3].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_pyramid_velocity[::skip, ::skip, 0]/max_vel,
                         -cur_pyramid_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches',
-                        color='green')
+                        color='black')
         axes[3].set_title('Pyramid (original results scaled 30x)')
         axes[3].set_xlabel('x')
         axes[3].set_ylabel('y')
-        axes[3].invert_yaxis()
         # compute and annotate loss
         if loss == 'MSE':
             cur_loss = np.square(cur_true_energy - cur_pyramid_energy).mean(axis=None)
@@ -466,7 +509,7 @@ for i in vis_frame:
 
 
         # cross-correlation
-        axes[4].pcolor(cur_cc_energy)
+        axes[4].imshow(cur_cc_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
         axes[4].quiver(y_pos[::skip, ::skip],
                         x_pos[::skip, ::skip],
                         cur_cc_velocity[::skip, ::skip, 0]/max_vel,
@@ -477,9 +520,8 @@ for i in vis_frame:
         axes[4].set_title('Cross-correlation (original results scaled 30x)')
         axes[4].set_xlabel('x')
         axes[4].set_ylabel('y')
-        axes[4].invert_yaxis()
         # compute and annotate loss
-        if loss == 'MSE':
+        if loss == 'MSE(Energy)':
             cur_loss = np.square(cur_true_energy - cur_cc_energy).mean(axis=None)
         elif loss == 'RMSE':
             cur_loss = np.sqrt(np.square(cur_true_energy - cur_cc_energy)).mean(axis=None)
