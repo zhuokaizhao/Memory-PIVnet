@@ -37,9 +37,10 @@ result_paths = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Is
 # start and end time (both inclusive)
 load_time_range = [0, 248]
 # frame 81, 153, 154 have broken ground truth
-vis_frame = [41]
-# vis_frame = list(range(0, 81)) + list(range(82, 153)) + list(range(155, 249))
+# vis_frame = [41]
+vis_frame = list(range(0, 81)) + list(range(82, 153)) + list(range(155, 249))
 img_size = 256
+my_dpi = 100
 
 # directory to save the results
 figs_dir = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/new_figs/Isotropic_1024/velocity/50000_seeds/'
@@ -150,6 +151,7 @@ for i in tqdm(vis_frame):
 
         # plot includes four subplots
         fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
+        plt.suptitle(f't = {i}')
         skip = 7
 
         # superimpose quiver plot on color-coded images
@@ -221,7 +223,7 @@ for i in tqdm(vis_frame):
                         scale=Q.scale,
                         scale_units='inches',
                         color='green')
-        axes[3].set_title('Pyramid (original results scaled 30x)')
+        axes[3].set_title('Pyramid (output scaled 30x)')
         axes[3].set_xlabel('x')
         axes[3].set_ylabel('y')
         # compute and annotate loss
@@ -241,7 +243,7 @@ for i in tqdm(vis_frame):
                         scale=Q.scale,
                         scale_units='inches',
                         color='green')
-        axes[4].set_title('Cross-correlation (original results scaled 30x)')
+        axes[4].set_title('Cross-correlation (output scaled 30x)')
         axes[4].set_xlabel('x')
         axes[4].set_ylabel('y')
         # compute and annotate loss
@@ -256,7 +258,9 @@ for i in tqdm(vis_frame):
         test_quiver_dir = os.path.join(figs_dir, 'test_quiver')
         os.makedirs(test_quiver_dir, exist_ok=True)
         test_quiver_path = os.path.join(test_quiver_dir, f'test_quiver_{str(i).zfill(4)}.png')
-        plt.savefig(test_quiver_path, bbox_inches='tight', dpi=500)
+        plt.savefig(test_quiver_path, bbox_inches='tight', dpi=my_dpi)
+        fig.clf()
+        plt.close(fig)
         # print(f'\nSuperimposed test quiver plot has been saved to {test_quiver_path}')
 
     # color encoding plots
@@ -282,6 +286,7 @@ for i in tqdm(vis_frame):
 
         # plot includes four subplots
         fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
+        plt.suptitle(f't = {i}')
         skip = 7
 
         # superimpose quiver plot on color-coded images
@@ -348,7 +353,7 @@ for i in tqdm(vis_frame):
                         -cur_pyramid_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches')
-        axes[3].set_title('Pyramid (original results scaled 30x)')
+        axes[3].set_title('Pyramid (output scaled 30x)')
         axes[3].set_xlabel('x')
         axes[3].set_ylabel('y')
         # compute and annotate loss
@@ -366,7 +371,7 @@ for i in tqdm(vis_frame):
                         -cur_cc_velocity[::skip, ::skip, 1]/max_vel,
                         scale=Q.scale,
                         scale_units='inches')
-        axes[4].set_title('Cross-correlation (original results scaled 30x)')
+        axes[4].set_title('Cross-correlation (output scaled 30x)')
         axes[4].set_xlabel('x')
         axes[4].set_ylabel('y')
         # compute and annotate loss
@@ -380,7 +385,9 @@ for i in tqdm(vis_frame):
         color_encoded_dir = os.path.join(figs_dir, 'color_encoded')
         os.makedirs(color_encoded_dir, exist_ok=True)
         color_encoded_path = os.path.join(color_encoded_dir, f'color_encoded_{str(i).zfill(4)}.png')
-        plt.savefig(color_encoded_path, bbox_inches='tight', dpi=500)
+        plt.savefig(color_encoded_path, bbox_inches='tight', dpi=my_dpi)
+        fig.clf()
+        plt.close(fig)
         # print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
 
     # aee heatmap plot
@@ -394,6 +401,7 @@ for i in tqdm(vis_frame):
 
         # plot includes four subplots
         fig, axes = plt.subplots(nrows=1, ncols=len(methods)-1, figsize=(5*(len(methods)-1), 5))
+        plt.suptitle(f't = {i}')
         cmap_range = [0, 40]
 
         axes[0].imshow(cur_memory_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
@@ -409,13 +417,13 @@ for i in tqdm(vis_frame):
         axes[1].annotate(f'AEE: ' + '{:.3f}'.format(cur_lfn_aee.mean()), (5, 10), color='white', fontsize='medium')
 
         axes[2].imshow(cur_pyramid_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-        axes[2].set_title('Pyramid (original results scaled 30x)')
+        axes[2].set_title('Pyramid (output scaled 30x)')
         axes[2].set_xlabel('x')
         axes[2].set_ylabel('y')
         axes[2].annotate(f'AEE: ' + '{:.3f}'.format(cur_pyramid_aee.mean()), (5, 10), color='white', fontsize='medium')
 
         im=axes[3].imshow(cur_cc_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-        axes[3].set_title('Cross-correlation (original results scaled 30x)')
+        axes[3].set_title('Cross-correlation (output scaled 30x)')
         axes[3].set_xlabel('x')
         axes[3].set_ylabel('y')
         axes[3].annotate(f'AEE: ' + '{:.3f}'.format(cur_cc_aee.mean()), (5, 10), color='white', fontsize='medium')
@@ -426,8 +434,10 @@ for i in tqdm(vis_frame):
         # save the image
         aee_dir = os.path.join(figs_dir, 'aee_plot')
         os.makedirs(aee_dir, exist_ok=True)
-        aee_path = os.path.join(aee_dir, f'aee_error.png')
-        plt.savefig(aee_path, bbox_inches='tight', dpi=500)
+        aee_path = os.path.join(aee_dir, f'aee_error_{str(i).zfill(4)}.png')
+        plt.savefig(aee_path, bbox_inches='tight', dpi=my_dpi)
+        fig.clf()
+        plt.close(fig)
         # print(f'\nAEE plot has been saved to {aee_path}')
 
     # energy plot
@@ -441,6 +451,7 @@ for i in tqdm(vis_frame):
 
         # plot includes four subplots
         fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
+        plt.suptitle(f't = {i}')
         skip = 7
         cmap_range = [np.min(cur_true_energy), np.max(cur_true_energy)]
 
@@ -512,7 +523,7 @@ for i in tqdm(vis_frame):
                         scale=Q.scale,
                         scale_units='inches',
                         color='black')
-        axes[3].set_title('Pyramid (original results scaled 30x)')
+        axes[3].set_title('Pyramid (output scaled 30x)')
         axes[3].set_xlabel('x')
         axes[3].set_ylabel('y')
         # compute and annotate loss
@@ -532,7 +543,7 @@ for i in tqdm(vis_frame):
                         scale=Q.scale,
                         scale_units='inches',
                         color='green')
-        axes[4].set_title('Cross-correlation (original results scaled 30x)')
+        axes[4].set_title('Cross-correlation (output scaled 30x)')
         axes[4].set_xlabel('x')
         axes[4].set_ylabel('y')
         # compute and annotate loss
@@ -547,7 +558,9 @@ for i in tqdm(vis_frame):
         energy_dir = os.path.join(figs_dir, 'energy_plot')
         os.makedirs(energy_dir, exist_ok=True)
         energy_path = os.path.join(energy_dir, f'energy_{str(i).zfill(4)}.png')
-        plt.savefig(energy_path, bbox_inches='tight', dpi=500)
+        plt.savefig(energy_path, bbox_inches='tight', dpi=my_dpi)
+        fig.clf()
+        plt.close(fig)
         # print(f'\nEnergy plot has been saved to {energy_path}')
 
     # error line plot
@@ -574,5 +587,5 @@ if plot_error_line_plot:
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.legend()
     loss_curve_path = os.path.join(figs_dir, f'all_frame_losses.png')
-    fig.savefig(loss_curve_path, bbox_inches='tight', dpi=500)
+    fig.savefig(loss_curve_path, bbox_inches='tight', dpi=my_dpi)
     print(f'\nLosses of all frames plot has been saved to {loss_curve_path}')
