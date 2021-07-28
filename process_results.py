@@ -5,8 +5,10 @@ import glob
 import h5py
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 import plot
 
@@ -34,17 +36,20 @@ result_paths = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Is
 
 # start and end time (both inclusive)
 load_time_range = [0, 248]
+# frame 81, 153, 154 have broken ground truth
 vis_frame = [41]
+# vis_frame = list(range(0, 81)) + list(range(82, 153)) + list(range(155, 249))
 img_size = 256
 
 # directory to save the results
-figs_dir = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/figs/Isotropic_1024/velocity/'
+figs_dir = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/new_figs/Isotropic_1024/velocity/50000_seeds/'
 
 # different types of visualizations
 plot_image_quiver = True
 plot_color_encoded = True
 plot_aee_heatmap = True
 plot_energy = True
+plot_error_line_plot = False
 
 # different losses
 loss = 'RMSE'
@@ -124,9 +129,14 @@ cc_velocity_full_res = np.array(cc_velocity_full_res)
 print(f'\nFull-resolution pyramid velocity has shape {pyramid_velocity_full_res.shape}')
 print(f'Full-resolution cross-correlation velocity has shape {cc_velocity_full_res.shape}')
 
+if plot_error_line_plot:
+    memory_errors = []
+    lfn_errors = []
+    pyramid_errors = []
+    cc_errors = []
 
 # visualizing the results
-for i in vis_frame:
+for i in tqdm(vis_frame):
     cur_true_velocity = true_velocity[i]
     cur_memory_velocity = memory_velocity[i]
     cur_lfn_velocity = lfn_velocity[i]
@@ -243,10 +253,11 @@ for i in vis_frame:
 
 
         # save the image
-        test_quiver_path = os.path.join(figs_dir, f'test_quiver_{i}.png')
+        test_quiver_dir = os.path.join(figs_dir, 'test_quiver')
+        os.makedirs(test_quiver_dir, exist_ok=True)
+        test_quiver_path = os.path.join(test_quiver_dir, f'test_quiver_{i}.png')
         plt.savefig(test_quiver_path, bbox_inches='tight', dpi=500)
-        print(f'\nSuperimposed test quiver plot has been saved to {test_quiver_path}')
-
+        # print(f'\nSuperimposed test quiver plot has been saved to {test_quiver_path}')
 
     # color encoding plots
     if plot_color_encoded:
@@ -366,9 +377,11 @@ for i in vis_frame:
         axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
         # save the image
-        color_encoded_path = os.path.join(figs_dir, f'color_encoded_{i}.png')
+        color_encoded_dir = os.path.join(figs_dir, 'color_encoded')
+        os.makedirs(color_encoded_dir, exist_ok=True)
+        color_encoded_path = os.path.join(color_encoded_dir, f'color_encoded_{i}.png')
         plt.savefig(color_encoded_path, bbox_inches='tight', dpi=500)
-        print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
+        # print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
 
     # aee heatmap plot
     if plot_aee_heatmap:
@@ -410,10 +423,12 @@ for i in vis_frame:
         cax, kw = mpl.colorbar.make_axes([ax for ax in axes.flat])
         plt.colorbar(im, cax=cax, **kw)
 
-        aee_path = os.path.join(figs_dir, f'aee_error.png')
+        # save the image
+        aee_dir = os.path.join(figs_dir, 'aee_plot')
+        os.makedirs(aee_dir, exist_ok=True)
+        aee_path = os.path.join(aee_dir, f'aee_error.png')
         plt.savefig(aee_path, bbox_inches='tight', dpi=500)
-        print(f'\nAEE plot has been saved to {aee_path}')
-
+        # print(f'\nAEE plot has been saved to {aee_path}')
 
     # energy plot
     if plot_energy:
@@ -529,8 +544,35 @@ for i in vis_frame:
 
 
         # save the image
-        energy_path = os.path.join(figs_dir, f'energy_{i}.png')
+        energy_dir = os.path.join(figs_dir, 'energy_plot')
+        os.makedirs(energy_dir, exist_ok=True)
+        energy_path = os.path.join(energy_dir, f'energy_{i}.png')
         plt.savefig(energy_path, bbox_inches='tight', dpi=500)
-        print(f'\nEnergy plot has been saved to {energy_path}')
+        # print(f'\nEnergy plot has been saved to {energy_path}')
+
+    # error line plot
+    if plot_error_line_plot:
+        if loss == 'MSE':
+            memory_errors.append(np.square(cur_true_velocity - cur_memory_velocity).mean(axis=None))
+            lfn_errors.append(np.square(cur_true_velocity - cur_lfn_velocity).mean(axis=None))
+            pyramid_errors.append(np.square(cur_true_velocity - cur_pyramid_velocity).mean(axis=None))
+            cc_errors.append(np.square(cur_true_velocity - cur_cc_velocity).mean(axis=None))
+        elif loss == 'RMSE':
+            memory_errors.append(np.sqrt(np.square(cur_true_velocity - cur_memory_velocity)).mean(axis=None))
+            lfn_errors.append(np.sqrt(np.square(cur_true_velocity - cur_lfn_velocity)).mean(axis=None))
+            pyramid_errors.append(np.sqrt(np.square(cur_true_velocity - cur_pyramid_velocity)).mean(axis=None))
+            cc_errors.append(np.sqrt(np.square(cur_true_velocity - cur_cc_velocity)).mean(axis=None))
 
 
+if plot_error_line_plot:
+    fig, ax = plt.subplots()
+    ax.plot(vis_frame, memory_errors, label='Memory-PIVnet')
+    ax.plot(vis_frame, lfn_errors, label='LiteFlowNet-en')
+    ax.plot(vis_frame, pyramid_errors, label='Pyramid')
+    ax.plot(vis_frame, cc_errors, label='CC')
+    ax.set(xlabel='timestamp', ylabel=f'{loss}')
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    plt.legend()
+    loss_curve_path = os.path.join(figs_dir, f'all_frame_losses.png')
+    fig.savefig(loss_curve_path, bbox_inches='tight', dpi=500)
+    print(f'\nLosses of all frames plot has been saved to {loss_curve_path}')
