@@ -31,7 +31,7 @@ import plot
 import tools
 import pair_data
 
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
@@ -810,7 +810,7 @@ def bilinear_interpolate_blend(h_patch,
 def run_test(network_model,
             all_test_image_sequences,
             model_dir,
-            figs_dir,
+            output_dir,
             loss,
             start_t,
             end_t,
@@ -1176,7 +1176,7 @@ def run_test(network_model,
                     cur_t_flow_pred = Image.fromarray(cur_t_flow_pred)
 
                     # used for superimposing quiver plot on color-coded images
-                    skip = 40
+                    skip = 32
                     # col
                     x = np.linspace(0, final_size[1]-1, final_size[1])
                     # row
@@ -1203,7 +1203,7 @@ def run_test(network_model,
                         # plt.gca().set_axis_off()
                         # plt.gca().xaxis.set_major_locator(plt.NullLocator())
                         # plt.gca().yaxis.set_major_locator(plt.NullLocator())
-                        true_quiver_path = os.path.join(figs_dir, f'true_{t-9//2}.png')
+                        true_quiver_path = os.path.join(output_dir, f'true_{t-9//2}.png')
                         plt.savefig(true_quiver_path, bbox_inches='tight', dpi=my_dpi)
                         print(f'ground truth quiver plot has been saved to {true_quiver_path}')
 
@@ -1219,7 +1219,9 @@ def run_test(network_model,
                         else:
                             plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_unblend), (5, 10), color='white', fontsize='large')
 
-                    unblend_path = os.path.join(figs_dir, 'unblend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_unblend.svg')
+                    unblend_dir = os.path.join(output_dir, 'unblend_plot')
+                    os.makedirs(unblend_dir, exist_ok=True)
+                    unblend_path = os.path.join(unblend_dir, f'{network_model}_{time_span}_{t-9//2}_pred_unblend.svg')
                     # plt.gca().set_axis_off()
                     # plt.gca().xaxis.set_major_locator(plt.NullLocator())
                     # plt.gca().yaxis.set_major_locator(plt.NullLocator())
@@ -1232,13 +1234,15 @@ def run_test(network_model,
                                 -cur_t_stitched_label_pred[::skip, ::skip, 1]/max_vel,
                                 scale=2.0,
                                 scale_units='inches')
-                    unblend_quiver_path = os.path.join(figs_dir, 'unblend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_unblend.svg')
+                    unblend_quiver_dir = os.path.join(output_dir, 'unblend_quiver_plot')
+                    os.makedirs(unblend_quiver_dir, exist_ok=True)
+                    unblend_quiver_path = os.path.join(unblend_quiver_dir, f'{network_model}_{time_span}_{t-9//2}_pred_quiver_unblend.svg')
                     plt.savefig(unblend_quiver_path, bbox_inches='tight', dpi=my_dpi)
                     print(f'unblend quiver plot has been saved to {unblend_quiver_path}')
 
                     # visualize and save the AEE
                     if all_test_label_sequences != None:
-                        aee_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.svg')
+                        aee_path = os.path.join(output_dir, f'{network_model}_{time_span}_{t-9//2}_unblend_error.svg')
                         plot.visualize_AEE(pred_error_unblend, aee_path)
 
                     # same kind of plot for blended predictions
@@ -1257,7 +1261,9 @@ def run_test(network_model,
                             else:
                                 plt.annotate(f'{loss}: ' + '{:.3f}'.format(loss_blend), (5, 10), color='white', fontsize='large')
 
-                        blend_path = os.path.join(figs_dir, 'blend_plot', f'{network_model}_{time_span}_{t-9//2}_pred_blend.svg')
+                        blend_dir = os.path.join(output_dir, 'blend_plot')
+                        os.makedirs(blend_dir, exist_ok=True)
+                        blend_path = os.path.join(blend_dir, f'{network_model}_{time_span}_{t-9//2}_pred_blend.svg')
                         # plt.gca().set_axis_off()
                         # plt.gca().xaxis.set_major_locator(plt.NullLocator())
                         # plt.gca().yaxis.set_major_locator(plt.NullLocator())
@@ -1270,44 +1276,56 @@ def run_test(network_model,
                                     -cur_t_stitched_label_pred_blend[::skip, ::skip, 1]/max_vel,
                                     scale=1.0,
                                     scale_units='inches')
-                        blend_quiver_path = os.path.join(figs_dir, 'blend_quiver_plot', f'{network_model}_{time_span}_{t-9//2}_pred_quiver_blend.svg')
+                        blend_quiver_dir = os.path.join(output_dir, 'blend_quiver_plot')
+                        os.makedirs(blend_quiver_dir, exist_ok=True)
+                        blend_quiver_path = os.path.join(blend_quiver_dir, f'{network_model}_{time_span}_{t-9//2}_pred_quiver_blend.svg')
                         plt.savefig(blend_quiver_path, bbox_inches='tight', dpi=my_dpi)
                         print(f'blended quiver plot has been saved to {blend_quiver_path}')
 
                         # AEE
                         if all_test_label_sequences != None:
-                            aee_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.svg')
+                            aee_path_blend = os.path.join(output_dir, f'{network_model}_{time_span}_{t-9//2}_blend_error.svg')
                             plot.visualize_AEE(pred_error_blend, aee_path_blend)
 
                     # finally save the testing image
+                    test_image_dir = os.path.join(output_dir, 'test_images')
+                    os.makedirs(test_image_dir, exist_ok=True)
                     if vorticity:
-                        test_image_path = os.path.join(figs_dir, 'test_images', f'test_vorticity_{t-9//2}.png')
+                        test_image_path = os.path.join(test_image_dir, f'test_vorticity_{t-9//2}.png')
                     else:
-                        test_image_path = os.path.join(figs_dir, 'test_images', f'test_velocity_{t-9//2}.png')
+                        test_image_path = os.path.join(test_image_dir, f'test_velocity_{t-9//2}.png')
                     cur_t_test_image.save(test_image_path)
                     print(f'Test image has been saved to {test_image_path}')
 
                 # save the resulting velocity/vorticity fields
                 if save_results:
                     if vorticity:
-                        result_path = os.path.join(figs_dir, 'unblend_vor_field', f'test_vorticity_{t-9//2}.npz')
+                        result_dir = os.path.join(output_dir, 'unblend_vor_field')
+                        os.makedirs(result_dir, exist_ok=True)
+                        result_path = os.path.join(result_dir, f'test_vorticity_{t-9//2}.npz')
                         np.savez(result_path,
                                 vorticity=cur_t_stitched_label_pred)
                         print(f'Unblend vorticity has been saved to {result_path}')
 
                         if blend:
-                            result_blend_path = os.path.join(figs_dir, 'unblend_vor_field', f'test_vorticity_blend_{t-9//2}.npz')
+                            result_blend_dir = os.path.join(output_dir, 'unblend_vor_field')
+                            os.makedirs(result_blend_dir, exist_ok=True)
+                            result_blend_path = os.path.join(result_blend_dir, f'test_vorticity_blend_{t-9//2}.npz')
                             np.savez(result_blend_path,
                                     vorticity=cur_t_stitched_label_pred_blend)
                             print(f'Blend vorticity has been saved to {result_path}')
                     else:
-                        result_path = os.path.join(figs_dir, 'unblend_vel_field', f'test_velocity_{t-9//2}.npz')
+                        result_dir = os.path.join(output_dir, 'unblend_vel_field')
+                        os.makedirs(result_dir, exist_ok=True)
+                        result_path = os.path.join(result_dir, f'test_velocity_{t-9//2}.npz')
                         np.savez(result_path,
                                 velocity=cur_t_stitched_label_pred)
                         print(f'Unblend velocity has been saved to {result_path}')
 
                         if blend:
-                            result_blend_path = os.path.join(figs_dir, 'blend_vel_field', f'test_velocity_blend_{t-9//2}.npz')
+                            result_blend_dir = os.path.join(output_dir, 'unblend_vel_field')
+                            os.makedirs(result_blend_dir, exist_ok=True)
+                            result_blend_path = os.path.join(result_blend_dir, f'test_velocity_blend_{t-9//2}.npz')
                             np.savez(result_blend_path,
                                     velocity=cur_t_stitched_label_pred_blend)
                             print(f'Blend velocity has been saved to {result_blend_path}')
@@ -1321,9 +1339,9 @@ def run_test(network_model,
                 print(f'Min unblended {loss} is {min_loss} at t={min_loss_index}\n')
                 # save all the losses to file
                 if vorticity:
-                    loss_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.npy')
+                    loss_path = os.path.join(output_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.npy')
                 else:
-                    loss_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.npy')
+                    loss_path = os.path.join(output_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.npy')
                 np.save(loss_path, all_losses)
                 # generate loss curve plot
                 t = np.arange(start_t, end_t+1)
@@ -1332,9 +1350,9 @@ def run_test(network_model,
                 ax.set(xlabel='timestamp', ylabel=f'{loss}')
                 ax.xaxis.set_major_locator(MaxNLocator(integer=True))
                 if vorticity:
-                    loss_curve_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.svg')
+                    loss_curve_path = os.path.join(output_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses.svg')
                 else:
-                    loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.svg')
+                    loss_curve_path = os.path.join(output_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses.svg')
                 fig.savefig(loss_curve_path, bbox_inches='tight')
 
                 if blend:
@@ -1343,7 +1361,7 @@ def run_test(network_model,
                     avg_loss_blend = np.mean(all_losses_blend)
                     print(f'Average blended {loss} is {avg_loss_blend}')
                     print(f'Min blended {loss} is {min_loss_blend} at t={min_loss_index_blend}')
-                    loss_path_blend = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.npy')
+                    loss_path_blend = os.path.join(output_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.npy')
                     np.save(loss_path_blend, all_losses_blend)
                     # generate loss curve plot
                     fig, ax = plt.subplots()
@@ -1351,9 +1369,9 @@ def run_test(network_model,
                     ax.set(xlabel='timestamp', ylabel=f'{loss}')
                     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
                     if vorticity:
-                        loss_curve_path = os.path.join(figs_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
+                        loss_curve_path = os.path.join(output_dir, f'{network_model}_vorticity_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
                     else:
-                        loss_curve_path = os.path.join(figs_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
+                        loss_curve_path = os.path.join(output_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
                     fig.savefig(loss_curve_path, bbox_inches='tight')
 
 # use when training with long term memroy
@@ -2268,7 +2286,7 @@ def main():
         else:
             data_type = 'multi-frame'
         model_dir = args.model_dir[0]
-        figs_dir = args.output_dir[0]
+        output_dir = args.output_dir[0]
         time_span = int(args.time_span[0])
         start_t = int(args.start_t[0])
         end_t = int(args.end_t[0])
@@ -2280,9 +2298,10 @@ def main():
             target_dim = 2
         loss = args.loss[0]
         long_term_memory = args.long_term_memory
-        # final_size = 256
+        # for Zhuokai data
+        final_size = [256, 256]
         # for Irvine JHTD
-        final_size = [1024, 1024]
+        # final_size = [1024, 1024]
         # for horizontal move
         # final_size = [800, 1280]
 
@@ -2320,8 +2339,8 @@ def main():
                 all_test_label_sequences = torch.from_numpy(all_test_label_sequences).float().permute(0, 1, 2, 5, 3, 4)
 
             # parameters loaded from input data
-            tile_size = (64, 64)
-            # tile_size = (all_test_label_sequences.shape[4], all_test_label_sequences.shape[5])
+            # tile_size = (64, 64)
+            tile_size = (all_test_label_sequences.shape[4], all_test_label_sequences.shape[5])
             num_channels = all_test_image_sequences.shape[-3]
             num_tiles_per_image = all_test_image_sequences.shape[1]
         elif data_type == 'image-pair':
@@ -2339,7 +2358,7 @@ def main():
             print(f'netowrk model: {network_model}')
             print(f'testing data dir: {test_dir}')
             print(f'input model dir: {model_dir}')
-            print(f'output figures dir: {figs_dir}')
+            print(f'output dir: {output_dir}')
             print(f'loss function: {loss}')
             print(f'number of image channel: {num_channels}')
             print(f'time span: {time_span}')
@@ -2368,7 +2387,7 @@ def main():
             run_test(network_model,
                     all_test_image_sequences,
                     model_dir,
-                    figs_dir,
+                    output_dir,
                     loss,
                     start_t,
                     end_t,
