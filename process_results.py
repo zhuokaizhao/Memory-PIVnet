@@ -37,8 +37,9 @@ result_paths = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Is
 # start and end time (both inclusive)
 load_time_range = [0, 248]
 # frame 81, 153, 154 have broken ground truth
-# vis_frame = [41]
-vis_frame = list(range(0, 81)) + list(range(82, 153)) + list(range(155, 249))
+vis_frame = [41, 141, 241]
+vis_frame = list(range(0, 249, 20))
+# vis_frame = list(range(12, 81)) + list(range(82, 153)) + list(range(155, 249))
 img_size = 256
 my_dpi = 100
 

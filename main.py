@@ -1073,14 +1073,14 @@ def run_test(network_model,
                                 = cur_t_tile_label_true
 
                 # scale the result from final_size to [0, 1]
-                cur_t_stitched_label_pred[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / final_size[0]
-                cur_t_stitched_label_pred[:, :, 1] = cur_t_stitched_label_pred[:, :, 1] / final_size[0]
-                if all_test_label_sequences != None:
-                    cur_t_stitched_label_true[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / final_size[0]
-                    cur_t_stitched_label_true[:, :, 1] = cur_t_stitched_label_true[:, :, 1] / final_size[0]
-                if blend:
-                    cur_t_stitched_label_pred_blend[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / final_size[0]
-                    cur_t_stitched_label_pred_blend[:, :, 1] = cur_t_stitched_label_pred_blend[:, :, 1] / final_size[0]
+                # cur_t_stitched_label_pred[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / final_size[0]
+                # cur_t_stitched_label_pred[:, :, 1] = cur_t_stitched_label_pred[:, :, 1] / final_size[0]
+                # if all_test_label_sequences != None:
+                #     cur_t_stitched_label_true[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / final_size[0]
+                #     cur_t_stitched_label_true[:, :, 1] = cur_t_stitched_label_true[:, :, 1] / final_size[0]
+                # if blend:
+                #     cur_t_stitched_label_pred_blend[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / final_size[0]
+                #     cur_t_stitched_label_pred_blend[:, :, 1] = cur_t_stitched_label_pred_blend[:, :, 1] / final_size[0]
 
                 # compute loss if ground truth is given
                 if all_test_label_sequences != None:
@@ -1195,7 +1195,7 @@ def run_test(network_model,
                                         y_pos[::skip, ::skip],
                                         cur_t_stitched_label_true[::skip, ::skip, 0]/max_vel,
                                         -cur_t_stitched_label_true[::skip, ::skip, 1]/max_vel,
-                                        scale=2.0,
+                                        # scale=2.0,
                                         scale_units='inches')
                         Q._init()
                         assert isinstance(Q.scale, float)
@@ -1234,7 +1234,7 @@ def run_test(network_model,
                                 y_pos[::skip, ::skip],
                                 cur_t_stitched_label_pred[::skip, ::skip, 0]/max_vel,
                                 -cur_t_stitched_label_pred[::skip, ::skip, 1]/max_vel,
-                                scale=2.0,
+                                scale=Q.scale,
                                 scale_units='inches')
                     unblend_quiver_dir = os.path.join(output_dir, 'unblend_quiver_plot')
                     os.makedirs(unblend_quiver_dir, exist_ok=True)
@@ -1278,7 +1278,7 @@ def run_test(network_model,
                                     y_pos[::skip, ::skip],
                                     cur_t_stitched_label_pred_blend[::skip, ::skip, 0]/max_vel,
                                     -cur_t_stitched_label_pred_blend[::skip, ::skip, 1]/max_vel,
-                                    scale=1.0,
+                                    scale=Q.scale,
                                     scale_units='inches')
                         blend_quiver_dir = os.path.join(output_dir, 'blend_quiver_plot')
                         os.makedirs(blend_quiver_dir, exist_ok=True)

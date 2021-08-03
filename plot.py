@@ -87,7 +87,9 @@ def flow_compute_color(u, v, convert_to_bgr=False):
     a = np.arctan2(-v, -u) / np.pi
 
     fk = (a + 1.0) / 2.0 * (num_colors - 1.0)
+    # print(fk)
     k0 = np.floor(fk).astype(np.int32)
+    # print(k0)
     k1 = (k0 + 1) % num_colors
     # k1[k1 == ncols] = 0
     f = fk - k0
@@ -97,6 +99,7 @@ def flow_compute_color(u, v, convert_to_bgr=False):
     for i in range(colorwheel.shape[1]):
         # all color candidates
         tmp = colorwheel[:, i]
+        # print(k0)
         color_0 = tmp[k0] / 255.0
         color_1 = tmp[k1] / 255.0
         final_color = (1 - f)*color_0 + f * color_1
