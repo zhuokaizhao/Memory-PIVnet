@@ -1072,28 +1072,31 @@ def run_test(network_model,
                                                     :] \
                                 = cur_t_tile_label_true
 
-                # scale the result from delta_pixel_per_imagesize to delta_pixel_per_pixel
-                cur_t_stitched_label_pred[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / final_size[0]
-                cur_t_stitched_label_pred[:, :, 1] = cur_t_stitched_label_pred[:, :, 1] / final_size[0]
+                # normalize the result from delta_pixel_per_imagesize to delta_pixel_per_pixel
+                cur_t_stitched_label_pred_normalized = np.copy(cur_t_stitched_label_pred)
+                cur_t_stitched_label_pred_normalized[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / final_size[0]
+                cur_t_stitched_label_pred_normalized[:, :, 1] = cur_t_stitched_label_pred[:, :, 1] / final_size[1]
                 if all_test_label_sequences != None:
-                    cur_t_stitched_label_true[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / final_size[0]
-                    cur_t_stitched_label_true[:, :, 1] = cur_t_stitched_label_true[:, :, 1] / final_size[0]
+                    cur_t_stitched_label_true_normalized = np.copy(cur_t_stitched_label_true)
+                    cur_t_stitched_label_true_normalized[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / final_size[0]
+                    cur_t_stitched_label_true_normalized[:, :, 1] = cur_t_stitched_label_true[:, :, 1] / final_size[1]
                 if blend:
-                    cur_t_stitched_label_pred_blend[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / final_size[0]
-                    cur_t_stitched_label_pred_blend[:, :, 1] = cur_t_stitched_label_pred_blend[:, :, 1] / final_size[0]
+                    cur_t_stitched_label_pred_blend_normalized = np.copy(cur_t_stitched_label_pred_blend)
+                    cur_t_stitched_label_pred_blend_normalized[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / final_size[0]
+                    cur_t_stitched_label_pred_blend_normalized[:, :, 1] = cur_t_stitched_label_pred_blend[:, :, 1] / final_size[1]
 
                 # compute loss if ground truth is given
                 if all_test_label_sequences != None:
                     if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
-                        loss_unblend = loss_module(torch.from_numpy(cur_t_stitched_label_pred), torch.from_numpy(cur_t_stitched_label_true))
+                        loss_unblend = loss_module(torch.from_numpy(cur_t_stitched_label_pred_normalized), torch.from_numpy(cur_t_stitched_label_true_normalized))
                         if loss == 'RMSE':
                             loss_unblend = torch.sqrt(loss_unblend)
                     elif loss == 'AEE':
                         sum_endpoint_error = 0
                         for i in range(final_size[0]):
                             for j in range(final_size[1]):
-                                cur_pred = cur_t_stitched_label_pred[i, j]
-                                cur_true = cur_t_stitched_label_true[i, j]
+                                cur_pred = cur_t_stitched_label_pred_normalized[i, j]
+                                cur_true = cur_t_stitched_label_true_normalized[i, j]
                                 cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
                                 sum_endpoint_error += cur_endpoint_error
 
@@ -1101,8 +1104,8 @@ def run_test(network_model,
                     # customized metric that converts into polar coordinates and compare
                     elif loss == 'polar':
                         # convert both truth and predictions to polar coordinate
-                        cur_t_stitched_label_true_polar = tools.cart2pol(cur_t_stitched_label_true)
-                        cur_t_stitched_label_pred_polar = tools.cart2pol(cur_t_stitched_label_pred)
+                        cur_t_stitched_label_true_polar = tools.cart2pol(cur_t_stitched_label_true_normalized)
+                        cur_t_stitched_label_pred_polar = tools.cart2pol(cur_t_stitched_label_pred_normalized)
                         # absolute magnitude difference and angle difference
                         r_diff_mean = np.abs(cur_t_stitched_label_true_polar[:, :, 0]-cur_t_stitched_label_pred_polar[:, :, 0]).mean()
                         theta_diff = np.abs(cur_t_stitched_label_true_polar[:, :, 1]-cur_t_stitched_label_pred_polar[:, :, 1])
@@ -1118,19 +1121,19 @@ def run_test(network_model,
                     print(f'\nInference {loss} of unblended image t={t-9//2} is {loss_unblend}')
 
                     # absolute error for plotting magnitude
-                    pred_error_unblend = np.sqrt((cur_t_stitched_label_pred[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
-                                                    + (cur_t_stitched_label_pred[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
+                    pred_error_unblend = np.sqrt((cur_t_stitched_label_pred_normalized[:,:,0]-cur_t_stitched_label_true_normalized[:,:,0])**2 \
+                                                    + (cur_t_stitched_label_pred_normalized[:,:,1]-cur_t_stitched_label_true_normalized[:,:,1])**2)
 
                     if blend:
                         if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
-                            loss_blend = loss_module(torch.from_numpy(cur_t_stitched_label_pred_blend), torch.from_numpy(cur_t_stitched_label_true))
+                            loss_blend = loss_module(torch.from_numpy(cur_t_stitched_label_pred_blend_normalized), torch.from_numpy(cur_t_stitched_label_true_normalized))
                             if loss == 'RMSE':
                                 loss_blend = torch.sqrt(loss_blend)
                         elif loss == 'AEE':
                             sum_endpoint_error_blend = 0
                             for i in range(final_size[0]):
                                 for j in range(final_size[1]):
-                                    cur_pred_blend = cur_t_stitched_label_pred_blend[i, j]
+                                    cur_pred_blend = cur_t_stitched_label_pred_blend_normalized[i, j]
                                     cur_true = cur_t_stitched_label_true[i, j]
                                     cur_endpoint_error_blend = np.linalg.norm(cur_pred_blend-cur_true)
                                     sum_endpoint_error_blend += cur_endpoint_error_blend
@@ -1139,8 +1142,8 @@ def run_test(network_model,
                         # customized metric that converts into polar coordinates and compare
                         elif loss == 'polar':
                             # convert both truth and predictions to polar coordinate
-                            cur_t_stitched_label_true_polar = tools.cart2pol(cur_t_stitched_label_true)
-                            cur_t_stitched_label_pred_blend_polar = tools.cart2pol(cur_t_stitched_label_pred_blend)
+                            cur_t_stitched_label_true_polar = tools.cart2pol(cur_t_stitched_label_true_normalized)
+                            cur_t_stitched_label_pred_blend_polar = tools.cart2pol(cur_t_stitched_label_pred_blend_normalized)
                             # absolute magnitude difference and angle difference
                             r_diff_mean_blend = np.abs(cur_t_stitched_label_true_polar[:, :, 0]-cur_t_stitched_label_pred_blend_polar[:, :, 0]).mean()
                             theta_diff_blend = np.abs(cur_t_stitched_label_true_polar[:, :, 1]-cur_t_stitched_label_pred_blend_polar[:, :, 1])
@@ -1155,8 +1158,8 @@ def run_test(network_model,
                         print(f'\nInference {loss} of blended image t={t-9//2} is {loss_blend}')
 
                         # error for plotting magnitude
-                        pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend[:,:,0]-cur_t_stitched_label_true[:,:,0])**2 \
-                                                    + (cur_t_stitched_label_pred_blend[:,:,1]-cur_t_stitched_label_true[:,:,1])**2)
+                        pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend_normalized[:,:,0]-cur_t_stitched_label_true_normalized[:,:,0])**2 \
+                                                    + (cur_t_stitched_label_pred_blend_normalized[:,:,1]-cur_t_stitched_label_true_normalized[:,:,1])**2)
 
                 # save the input image, ground truth, prediction, and difference
                 if draw_normal:
