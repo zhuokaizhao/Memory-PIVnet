@@ -1330,7 +1330,7 @@ def run_test(network_model,
                         os.makedirs(ground_truth_dir, exist_ok=True)
                         ground_truth_path = os.path.join(ground_truth_dir, f'true_vorticity_{t-9//2}.npz')
                         np.savez(ground_truth_path,
-                                velocity=cur_t_stitched_label_true)
+                                vorticity=cur_t_stitched_label_true)
                         print(f'ground truth vorticity has been saved to {ground_truth_path}')
 
                         # unblend predictions
