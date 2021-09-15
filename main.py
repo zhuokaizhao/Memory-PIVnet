@@ -1073,17 +1073,27 @@ def run_test(network_model,
                                 = cur_t_tile_label_true
 
                 # normalize the result from delta_pixel_per_imagesize to delta_pixel_per_pixel
-                cur_t_stitched_label_pred_normalized = np.copy(cur_t_stitched_label_pred)
-                cur_t_stitched_label_pred_normalized[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / final_size[0]
-                cur_t_stitched_label_pred_normalized[:, :, 1] = cur_t_stitched_label_pred[:, :, 1] / final_size[1]
-                if all_test_label_sequences != None:
-                    cur_t_stitched_label_true_normalized = np.copy(cur_t_stitched_label_true)
-                    cur_t_stitched_label_true_normalized[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / final_size[0]
-                    cur_t_stitched_label_true_normalized[:, :, 1] = cur_t_stitched_label_true[:, :, 1] / final_size[1]
-                if blend:
-                    cur_t_stitched_label_pred_blend_normalized = np.copy(cur_t_stitched_label_pred_blend)
-                    cur_t_stitched_label_pred_blend_normalized[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / final_size[0]
-                    cur_t_stitched_label_pred_blend_normalized[:, :, 1] = cur_t_stitched_label_pred_blend[:, :, 1] / final_size[1]
+                if vorticity:
+                    cur_t_stitched_label_pred_normalized = np.copy(cur_t_stitched_label_pred)
+                    cur_t_stitched_label_pred_normalized[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / final_size[0]
+                    if all_test_label_sequences != None:
+                        cur_t_stitched_label_true_normalized = np.copy(cur_t_stitched_label_true)
+                        cur_t_stitched_label_true_normalized[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / final_size[0]
+                    if blend:
+                        cur_t_stitched_label_pred_blend_normalized = np.copy(cur_t_stitched_label_pred_blend)
+                        cur_t_stitched_label_pred_blend_normalized[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / final_size[0]
+                else:
+                    cur_t_stitched_label_pred_normalized = np.copy(cur_t_stitched_label_pred)
+                    cur_t_stitched_label_pred_normalized[:, :, 0] = cur_t_stitched_label_pred[:, :, 0] / final_size[0]
+                    cur_t_stitched_label_pred_normalized[:, :, 1] = cur_t_stitched_label_pred[:, :, 1] / final_size[1]
+                    if all_test_label_sequences != None:
+                        cur_t_stitched_label_true_normalized = np.copy(cur_t_stitched_label_true)
+                        cur_t_stitched_label_true_normalized[:, :, 0] = cur_t_stitched_label_true[:, :, 0] / final_size[0]
+                        cur_t_stitched_label_true_normalized[:, :, 1] = cur_t_stitched_label_true[:, :, 1] / final_size[1]
+                    if blend:
+                        cur_t_stitched_label_pred_blend_normalized = np.copy(cur_t_stitched_label_pred_blend)
+                        cur_t_stitched_label_pred_blend_normalized[:, :, 0] = cur_t_stitched_label_pred_blend[:, :, 0] / final_size[0]
+                        cur_t_stitched_label_pred_blend_normalized[:, :, 1] = cur_t_stitched_label_pred_blend[:, :, 1] / final_size[1]
 
                 # compute loss if ground truth is given
                 if all_test_label_sequences != None:
@@ -1121,8 +1131,11 @@ def run_test(network_model,
                     print(f'\nInference {loss} of unblended image t={t-9//2} is {loss_unblend}')
 
                     # absolute error for plotting magnitude
-                    pred_error_unblend = np.sqrt((cur_t_stitched_label_pred_normalized[:,:,0]-cur_t_stitched_label_true_normalized[:,:,0])**2 \
-                                                    + (cur_t_stitched_label_pred_normalized[:,:,1]-cur_t_stitched_label_true_normalized[:,:,1])**2)
+                    if vorticity:
+                        pred_error_unblend = np.sqrt((cur_t_stitched_label_pred_normalized[:,:,0]-cur_t_stitched_label_true_normalized[:,:,0])**2)
+                    else:
+                        pred_error_unblend = np.sqrt((cur_t_stitched_label_pred_normalized[:,:,0]-cur_t_stitched_label_true_normalized[:,:,0])**2 \
+                                                        + (cur_t_stitched_label_pred_normalized[:,:,1]-cur_t_stitched_label_true_normalized[:,:,1])**2)
 
                     if blend:
                         if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
@@ -1158,13 +1171,16 @@ def run_test(network_model,
                         print(f'\nInference {loss} of blended image t={t-9//2} is {loss_blend}')
 
                         # error for plotting magnitude
-                        pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend_normalized[:,:,0]-cur_t_stitched_label_true_normalized[:,:,0])**2 \
-                                                    + (cur_t_stitched_label_pred_blend_normalized[:,:,1]-cur_t_stitched_label_true_normalized[:,:,1])**2)
+                        if vorticity:
+                            pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend_normalized[:,:,0]-cur_t_stitched_label_true_normalized[:,:,0])**2)
+                        else:
+                            pred_error_blend = np.sqrt((cur_t_stitched_label_pred_blend_normalized[:,:,0]-cur_t_stitched_label_true_normalized[:,:,0])**2 \
+                                                        + (cur_t_stitched_label_pred_blend_normalized[:,:,1]-cur_t_stitched_label_true_normalized[:,:,1])**2)
 
                 # save the input image, ground truth, prediction, and difference
                 if draw_normal:
                     cur_t_test_image = cur_t_stitched_image[:, :, 0].astype(np.uint8).reshape((final_size[0], final_size[1]))
-                    # visualize the true velocity field if provided
+                    # visualize the true velocity or vorticity field if provided
                     if all_test_label_sequences != None:
                         cur_t_flow_true, max_vel = plot.visualize_flow(cur_t_stitched_label_true)
                         print(f'Label max vel magnitude is {max_vel}')
@@ -1309,6 +1325,15 @@ def run_test(network_model,
                 # save the resulting velocity/vorticity fields
                 if save_results:
                     if vorticity:
+                        # true vorticity field
+                        ground_truth_dir = os.path.join(output_dir, 'true_vor_field')
+                        os.makedirs(ground_truth_dir, exist_ok=True)
+                        ground_truth_path = os.path.join(ground_truth_dir, f'true_vorticity_{t-9//2}.npz')
+                        np.savez(ground_truth_path,
+                                velocity=cur_t_stitched_label_true)
+                        print(f'ground truth vorticity has been saved to {ground_truth_path}')
+
+                        # unblend predictions
                         result_dir = os.path.join(output_dir, 'unblend_vor_field')
                         os.makedirs(result_dir, exist_ok=True)
                         result_path = os.path.join(result_dir, f'test_vorticity_{t-9//2}.npz')
@@ -1317,7 +1342,7 @@ def run_test(network_model,
                         print(f'Unblend vorticity has been saved to {result_path}')
 
                         if blend:
-                            result_blend_dir = os.path.join(output_dir, 'unblend_vor_field')
+                            result_blend_dir = os.path.join(output_dir, 'blend_vor_field')
                             os.makedirs(result_blend_dir, exist_ok=True)
                             result_blend_path = os.path.join(result_blend_dir, f'test_vorticity_blend_{t-9//2}.npz')
                             np.savez(result_blend_path,
