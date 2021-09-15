@@ -98,44 +98,51 @@ def main():
 
     # load model testing output
     # different types of visualizations
-    plot_image_quiver = True
-    plot_color_encoded = True
-    plot_aee_heatmap = True
-    plot_energy = True
-    plot_velocity_error_line_plot = True
-    plot_vorticity_error_line_plot = True
+    if mode == 'velocity':
+        plot_image_quiver = True
+        plot_color_encoded = True
+        plot_aee_heatmap = True
+        plot_energy = True
+        plot_error_line_plot = True
+    elif mode == 'vorticity':
+        plot_image_quiver = True
+        plot_color_encoded = True
+        plot_aee_heatmap = False
+        plot_energy = False
+        plot_error_line_plot = True
 
     # loaded velocity fields
-    ground_truths = []
-    memory_results = []
-    lfn_results = []
-    pyramid_results = []
-    cc_results = []
+    results_all_methods = {}
+    if plot_error_line_plot:
+        errors_all_methods = {}
 
     # load results from each method
     for i, cur_method in enumerate(methods):
+
+        results_all_methods[cur_method] = []
+
         if cur_method == 'ground_truth':
             for t in range(time_range[0], time_range[1]+1):
                 cur_path = os.path.join(result_paths[i], f'true_{mode}_{t}.npz')
-                ground_truths.append(np.load(cur_path)[f'{mode}'])
+                results_all_methods[cur_method].append(np.load(cur_path)[f'{mode}'])
 
-            ground_truths = np.array(ground_truths)
+            results_all_methods[cur_method] = np.array(results_all_methods[cur_method])
 
         if cur_method == 'memory-piv-net':
             # load the velocity fields of the specified time range
             for t in range(time_range[0], time_range[1]+1):
                 cur_path = os.path.join(result_paths[i], f'test_{mode}_blend_{t}.npz')
-                memory_results.append(np.load(cur_path)[f'{mode}'])
+                results_all_methods[cur_method].append(np.load(cur_path)[f'{mode}'])
 
-            memory_results = np.array(memory_results)
+            results_all_methods[cur_method] = np.array(results_all_methods[cur_method])
 
         if cur_method == 'LiteFlowNet-en':
             # load the velocity fields of the specified time range
             for t in range(time_range[0], time_range[1]+1):
                 cur_path = os.path.join(result_paths[i], f'lfn_{mode}_{t}.npz')
-                lfn_results.append(np.load(cur_path)[f'{mode}'])
+                results_all_methods[cur_method].append(np.load(cur_path)[f'{mode}'])
 
-            lfn_results = np.array(lfn_results)
+            results_all_methods[cur_method] = np.array(results_all_methods[cur_method])
 
         # for pyramid and standar methods
         elif cur_method == 'pyramid' or cur_method == 'cross_correlation':
@@ -145,164 +152,62 @@ def main():
                 xx, yy = f['x'][...], f['y'][...]
                 ux, uy = f['ux'][...], f['uy'][...]
 
-            if cur_method == 'pyramid':
-                pyramid_results = np.stack((ux, uy))
-                pyramid_results = np.moveaxis(pyramid_results, [0, 1, 2, 3], [3, 1, 2, 0])
-            else:
-                cc_results = np.stack((ux, uy))
-                cc_results = np.moveaxis(cc_results, [0, 1, 2, 3], [3, 1, 2, 0])
+            results_all_methods[cur_method] = np.stack((ux, uy))
+            results_all_methods[cur_method] = np.moveaxis(results_all_methods[cur_method], [0, 1, 2, 3], [3, 1, 2, 0])
+
+            # upsampling pyramid or cc results to full image resolution by duplicating
+            ratio = img_size // results_all_methods[cur_method].shape[1]
+            results_all_methods[cur_method] = results_all_methods[cur_method].repeat(ratio, axis=1).repeat(ratio, axis=2)
+            results_all_methods[cur_method] = np.array(results_all_methods[cur_method])
 
     # print all the shapes
-    print(f'\nLoaded ground truth velocity has shape {ground_truths.shape}')
-    print(f'Loaded memory-piv-net velocity has shape {memory_results.shape}')
-    print(f'Loaded LiteFlowNet-en velocity has shape {lfn_results.shape}')
-    print(f'Loaded pyramid velocity has shape {pyramid_results.shape}')
-    print(f'Loaded cross-correlation velocity has shape {cc_results.shape}')
-
-    exit()
-
-    # upsampling pyramid and cc results to full image resolution by duplicating
-    pyramid_velocity_full_res = []
-    cc_velocity_full_res = []
-    for t in range(len(pyramid_velocity)):
-        ratio = img_size // pyramid_velocity[t].shape[1]
-        pyramid_velocity_full_res.append(pyramid_velocity[t].repeat(ratio, axis=0).repeat(ratio, axis=1))
-        cc_velocity_full_res.append(cc_velocity[t].repeat(ratio, axis=0).repeat(ratio, axis=1))
-
-    pyramid_velocity_full_res = np.array(pyramid_velocity_full_res)
-    cc_velocity_full_res = np.array(cc_velocity_full_res)
-    print(f'\nFull-resolution pyramid velocity has shape {pyramid_velocity_full_res.shape}')
-    print(f'Full-resolution cross-correlation velocity has shape {cc_velocity_full_res.shape}')
-
-    if plot_velocity_error_line_plot:
-        memory_vel_errors = []
-        lfn_vel_errors = []
-        pyramid_vel_errors = []
-        cc_vel_errors = []
-
-    if plot_vorticity_error_line_plot:
-        memory_vor_errors = []
-        lfn_vor_errors = []
-        pyramid_vor_errors = []
-        cc_vor_errors = []
+    for i, cur_method in enumerate(methods):
+        print(f'Loaded {cur_method} velocity has shape {results_all_methods[cur_method].shape}')
 
     # visualizing the results
+    # max velocity from ground truth is useful for normalization
+    max_truth = np.max(np.abs(results_all_methods['ground_truth']))
+    min_truth = np.min(results_all_methods['ground_truth'])
+
     for i in tqdm(range(time_range[0], time_range[1])):
-        cur_true_velocity = true_velocity[i]
-        cur_memory_velocity = memory_velocity[i]
-        cur_lfn_velocity = lfn_velocity[i]
-        cur_pyramid_velocity = pyramid_velocity_full_res[i]
-        cur_cc_velocity = cc_velocity_full_res[i]
 
         # test image superimposed quiver plot
         if plot_image_quiver:
             test_image_path = f'/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/test_images/test_velocity_{i}.png'
             test_image = Image.open(test_image_path)
 
-            # plot includes four subplots
+            # each method is a subplot
             fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
-            plt.suptitle(f't = {i}')
+            plt.suptitle(f'Particle image quiver plot at t = {i}')
             skip = 7
 
             # superimpose quiver plot on color-coded images
-            max_vel = np.max(cur_true_velocity)
-            # ground truth
-            x = np.linspace(0, img_size-1, img_size)
-            y = np.linspace(0, img_size-1, img_size)
-            y_pos, x_pos = np.meshgrid(x, y)
-            axes[0].imshow(test_image, 'gray')
-            Q = axes[0].quiver(y_pos[::skip, ::skip],
-                                x_pos[::skip, ::skip],
-                                cur_true_velocity[::skip, ::skip, 0]/max_vel,
-                                -cur_true_velocity[::skip, ::skip, 1]/max_vel,
-                                # scale=4.0,
-                                scale_units='inches',
-                                color='green')
-            Q._init()
-            assert isinstance(Q.scale, float)
-            axes[0].set_title('Ground truth')
-            axes[0].set_xlabel('x')
-            axes[0].set_ylabel('y')
+            for j, cur_method in enumerate(methods):
+                # current method
+                x = np.linspace(0, img_size-1, img_size)
+                y = np.linspace(0, img_size-1, img_size)
+                y_pos, x_pos = np.meshgrid(x, y)
+                axes[0].imshow(test_image, 'gray')
+                Q = axes[j].quiver(y_pos[::skip, ::skip],
+                                    x_pos[::skip, ::skip],
+                                    results_all_methods[cur_method][::skip, ::skip, 0]/max_truth,
+                                    -results_all_methods[cur_method][::skip, ::skip, 1]/max_truth,
+                                    # scale=4.0,
+                                    scale_units='inches',
+                                    color='green')
+                Q._init()
+                assert isinstance(Q.scale, float)
+                axes[j].set_title(f'{cur_method}')
+                axes[j].set_xlabel('x')
+                axes[j].set_ylabel('y')
 
-            # predictions
-            # memory-piv-net
-            axes[1].imshow(test_image, 'gray')
-            axes[1].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_memory_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_memory_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='green')
-            axes[1].set_title('Memory-PIVnet')
-            axes[1].set_xlabel('x')
-            axes[1].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_velocity - cur_memory_velocity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_velocity - cur_memory_velocity).mean(axis=None))
-            axes[1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-
-            # predictions
-            # lite-flow-net-en
-            axes[2].imshow(test_image, 'gray')
-            axes[2].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_lfn_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_lfn_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='green')
-            axes[2].set_title('LiteFlowNet-en')
-            axes[2].set_xlabel('x')
-            axes[2].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_velocity - cur_lfn_velocity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_velocity - cur_lfn_velocity).mean(axis=None))
-            axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-
-            # pyramid
-            axes[3].imshow(test_image, 'gray')
-            axes[3].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_pyramid_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_pyramid_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='green')
-            axes[3].set_title('Pyramid (output scaled 30x)')
-            axes[3].set_xlabel('x')
-            axes[3].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_velocity - cur_pyramid_velocity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_velocity - cur_pyramid_velocity).mean(axis=None))
-            axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-
-
-            # cross-correlation
-            axes[4].imshow(test_image, 'gray')
-            axes[4].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_cc_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_cc_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='green')
-            axes[4].set_title('Cross-correlation (output scaled 30x)')
-            axes[4].set_xlabel('x')
-            axes[4].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_velocity - cur_cc_velocity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_velocity - cur_cc_velocity).mean(axis=None))
-            axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-
+                # label error when not ground truth
+                if cur_method != 'ground_truth':
+                    if loss == 'MSE':
+                        cur_loss = np.square(results_all_methods['ground_truth'] - results_all_methods[cur_method]).mean(axis=None)
+                    elif loss == 'RMSE':
+                        cur_loss = np.sqrt(np.square(results_all_methods['ground_truth'] - results_all_methods[cur_method]).mean(axis=None))
+                    axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
             # save the image
             test_quiver_dir = os.path.join(figs_dir, 'test_quiver')
@@ -315,125 +220,54 @@ def main():
 
         # color encoding plots
         if plot_color_encoded:
-            # ground truth
-            cur_flow_true, max_vel = plot.visualize_flow(cur_true_velocity)
-            # predictions
-            # memory-piv-net
-            memory_flow_pred, _ = plot.visualize_flow(cur_memory_velocity, max_vel=max_vel)
-            # lfn
-            lfn_flow_pred, _ = plot.visualize_flow(cur_lfn_velocity, max_vel=max_vel)
-            # pyramid
-            pyramid_flow_pred, _ = plot.visualize_flow(cur_pyramid_velocity, max_vel=max_vel)
-            # cross-correlation
-            cc_flow_pred, _ = plot.visualize_flow(cur_cc_velocity, max_vel=max_vel)
-
-            # convert to Image
-            cur_flow_true = Image.fromarray(cur_flow_true)
-            memory_flow_pred = Image.fromarray(memory_flow_pred)
-            lfn_flow_pred = Image.fromarray(lfn_flow_pred)
-            pyramid_flow_pred = Image.fromarray(pyramid_flow_pred)
-            cc_flow_pred = Image.fromarray(cc_flow_pred)
-
             # plot includes four subplots
             fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
-            plt.suptitle(f't = {i}')
+            plt.suptitle(f'Color-encoded {mode} quiver plot at t = {i}')
             skip = 7
 
-            # superimpose quiver plot on color-coded images
-            # ground truth
-            x = np.linspace(0, img_size-1, img_size)
-            y = np.linspace(0, img_size-1, img_size)
-            y_pos, x_pos = np.meshgrid(x, y)
-            axes[0].imshow(cur_flow_true)
-            Q = axes[0].quiver(y_pos[::skip, ::skip],
-                                x_pos[::skip, ::skip],
-                                cur_true_velocity[::skip, ::skip, 0]/max_vel,
-                                -cur_true_velocity[::skip, ::skip, 1]/max_vel,
-                                # scale=4.0,
-                                scale_units='inches')
-            Q._init()
-            assert isinstance(Q.scale, float)
-            axes[0].set_title('Ground truth')
-            axes[0].set_xlabel('x')
-            axes[0].set_ylabel('y')
+            # for each method
+            for j, cur_method in enumerate(methods):
+                if mode == 'velocity':
+                    flow_vis, _ = plot.visualize_flow(results_all_methods[cur_method], max_vel=max_truth)
 
-            # predictions
-            # memory-piv-net
-            axes[1].imshow(memory_flow_pred)
-            axes[1].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_memory_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_memory_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches')
-            axes[1].set_title('Memory-PIVnet')
-            axes[1].set_xlabel('x')
-            axes[1].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_velocity - cur_memory_velocity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_velocity - cur_memory_velocity).mean(axis=None))
-            axes[1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                # convert to Image
+                flow_vis_image = Image.fromarray(flow_vis)
 
-            # lite-flow-net-en
-            axes[2].imshow(lfn_flow_pred)
-            axes[2].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_lfn_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_lfn_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches')
-            axes[2].set_title('LiteFlowNet-en')
-            axes[2].set_xlabel('x')
-            axes[2].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_velocity - cur_lfn_velocity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_velocity - cur_lfn_velocity).mean(axis=None))
-            axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                # show the image
+                if mode == 'velocity':
+                    axes[j].imshow(flow_vis_image)
+                elif mode == 'vorticity':
+                    # vorticity simply uses a heatmap-like color encoding
+                    axes[j].imshow(results_all_methods[cur_method], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('viridis'))
 
-            # pyramid
-            axes[3].imshow(pyramid_flow_pred)
-            axes[3].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_pyramid_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_pyramid_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches')
-            axes[3].set_title('Pyramid (output scaled 30x)')
-            axes[3].set_xlabel('x')
-            axes[3].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_velocity - cur_pyramid_velocity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_velocity - cur_pyramid_velocity).mean(axis=None))
-            axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                # superimpose quiver plot on color-coded images
+                x = np.linspace(0, img_size-1, img_size)
+                y = np.linspace(0, img_size-1, img_size)
+                y_pos, x_pos = np.meshgrid(x, y)
+                Q = axes[j].quiver(y_pos[::skip, ::skip],
+                                    x_pos[::skip, ::skip],
+                                    results_all_methods[cur_method][::skip, ::skip, 0]/max_truth,
+                                    -results_all_methods[cur_method][::skip, ::skip, 1]/max_truth,
+                                    # scale=4.0,
+                                    scale_units='inches')
+                Q._init()
+                assert isinstance(Q.scale, float)
+                axes[j].set_title(f'{cur_method}')
+                axes[j].set_xlabel('x')
+                axes[j].set_ylabel('y')
 
-            # cross-correlation
-            axes[4].imshow(cc_flow_pred)
-            axes[4].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_cc_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_cc_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches')
-            axes[4].set_title('Cross-correlation (output scaled 30x)')
-            axes[4].set_xlabel('x')
-            axes[4].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_velocity - cur_cc_velocity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_velocity - cur_cc_velocity).mean(axis=None))
-            axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                # label error when not ground truth
+                if cur_method != 'ground_truth':
+                    if loss == 'MSE':
+                        cur_loss = np.square(results_all_methods['ground_truth'] - results_all_methods[cur_method]).mean(axis=None)
+                    elif loss == 'RMSE':
+                        cur_loss = np.sqrt(np.square(results_all_methods['ground_truth'] - results_all_methods[cur_method]).mean(axis=None))
+                    axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
             # save the image
-            color_encoded_dir = os.path.join(figs_dir, 'color_encoded')
+            color_encoded_dir = os.path.join(figs_dir, f'{mode}_color_encoded')
             os.makedirs(color_encoded_dir, exist_ok=True)
-            color_encoded_path = os.path.join(color_encoded_dir, f'color_encoded_{str(i).zfill(4)}.png')
+            color_encoded_path = os.path.join(color_encoded_dir, f'{mode}_color_encoded_{str(i).zfill(4)}.png')
             plt.savefig(color_encoded_path, bbox_inches='tight', dpi=my_dpi)
             fig.clf()
             plt.close(fig)
@@ -442,48 +276,35 @@ def main():
         # aee heatmap plot
         if plot_aee_heatmap:
 
-            # average end point error for all the outputs
-            cur_memory_aee = np.sqrt((cur_memory_velocity[:,:,0]-cur_true_velocity[:,:,0])**2 + (cur_memory_velocity[:,:,1]-cur_true_velocity[:,:,1])**2)
-            cur_lfn_aee = np.sqrt((cur_lfn_velocity[:,:,0]-cur_true_velocity[:,:,0])**2 + (cur_lfn_velocity[:,:,1]-cur_true_velocity[:,:,1])**2)
-            cur_pyramid_aee = np.sqrt((cur_pyramid_velocity[:,:,0]-cur_true_velocity[:,:,0])**2 + (cur_pyramid_velocity[:,:,1]-cur_true_velocity[:,:,1])**2)
-            cur_cc_aee = np.sqrt((cur_cc_velocity[:,:,0]-cur_true_velocity[:,:,0])**2 + (cur_cc_velocity[:,:,1]-cur_true_velocity[:,:,1])**2)
-
-            # plot includes four subplots
+            # plot includes number of methods - 1 (no ground truth) subplots
             fig, axes = plt.subplots(nrows=1, ncols=len(methods)-1, figsize=(5*(len(methods)-1), 5))
-            plt.suptitle(f't = {i}')
+            plt.suptitle(f'{mode} average endpoint error at t = {i}')
             cmap_range = [0, 40]
 
-            axes[0].imshow(cur_memory_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-            axes[0].set_title('Memory-PIVnet')
-            axes[0].set_xlabel('x')
-            axes[0].set_ylabel('y')
-            axes[0].annotate(f'AEE: ' + '{:.3f}'.format(cur_memory_aee.mean()), (5, 10), color='white', fontsize='medium')
+            for j, cur_method in enumerate(methods):
+                if cur_method == 'ground_truth':
+                    continue
 
-            axes[1].imshow(cur_lfn_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-            axes[1].set_title('LiteFlowNet-en')
-            axes[1].set_xlabel('x')
-            axes[1].set_ylabel('y')
-            axes[1].annotate(f'AEE: ' + '{:.3f}'.format(cur_lfn_aee.mean()), (5, 10), color='white', fontsize='medium')
+                # average end point error for all the outputs
+                if mode == 'velocity':
+                    cur_method_aee = np.sqrt((results_all_methods[cur_method][:,:,0]-results_all_methods['ground_truth'][:,:,0])**2 + (results_all_methods[cur_method][:,:,1]-results_all_methods['ground_truth'][:,:,1])**2)
+                elif mode == 'vorticity':
+                    cur_method_aee = np.sqrt((results_all_methods[cur_method][:,:,0]-results_all_methods['ground_truth'][:,:,0])**2)
 
-            axes[2].imshow(cur_pyramid_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-            axes[2].set_title('Pyramid (output scaled 30x)')
-            axes[2].set_xlabel('x')
-            axes[2].set_ylabel('y')
-            axes[2].annotate(f'AEE: ' + '{:.3f}'.format(cur_pyramid_aee.mean()), (5, 10), color='white', fontsize='medium')
+                axes[j].imshow(cur_method_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
+                axes[j].set_title(f'{cur_method}')
+                axes[j].set_xlabel('x')
+                axes[j].set_ylabel('y')
+                axes[j].annotate(f'AEE: ' + '{:.3f}'.format(cur_method_aee.mean()), (5, 10), color='white', fontsize='medium')
 
-            im=axes[3].imshow(cur_cc_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-            axes[3].set_title('Cross-correlation (output scaled 30x)')
-            axes[3].set_xlabel('x')
-            axes[3].set_ylabel('y')
-            axes[3].annotate(f'AEE: ' + '{:.3f}'.format(cur_cc_aee.mean()), (5, 10), color='white', fontsize='medium')
 
-            cax, kw = mpl.colorbar.make_axes([ax for ax in axes.flat])
-            plt.colorbar(im, cax=cax, **kw)
+            # cax, kw = mpl.colorbar.make_axes([ax for ax in axes.flat])
+            # plt.colorbar(im, cax=cax, **kw)
 
             # save the image
-            aee_dir = os.path.join(figs_dir, 'aee_plot')
+            aee_dir = os.path.join(figs_dir, f'{mode}_aee_plot')
             os.makedirs(aee_dir, exist_ok=True)
-            aee_path = os.path.join(aee_dir, f'aee_error_{str(i).zfill(4)}.png')
+            aee_path = os.path.join(aee_dir, f'{mode}_aee_{str(i).zfill(4)}.png')
             plt.savefig(aee_path, bbox_inches='tight', dpi=my_dpi)
             fig.clf()
             plt.close(fig)
@@ -491,115 +312,44 @@ def main():
 
         # energy plot
         if plot_energy:
-            # compute energy
-            cur_true_energy = get_energy(cur_true_velocity)
-            cur_memory_energy = get_energy(cur_memory_velocity)
-            cur_lfn_energy = get_energy(cur_lfn_velocity)
-            cur_pyramid_energy = get_energy(cur_pyramid_velocity)
-            cur_cc_energy = get_energy(cur_cc_velocity)
 
             # plot includes four subplots
             fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
-            plt.suptitle(f't = {i}')
+            plt.suptitle(f'Energy plot at t = {i}')
             skip = 7
-            cmap_range = [np.min(cur_true_energy), np.max(cur_true_energy)]
 
-            # superimpose quiver plot on color-coded images
-            max_vel = np.max(cur_true_velocity)
-            # ground truth
-            x = np.linspace(0, img_size-1, img_size)
-            y = np.linspace(0, img_size-1, img_size)
-            y_pos, x_pos = np.meshgrid(x, y)
-            axes[0].imshow(cur_true_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-            Q = axes[0].quiver(y_pos[::skip, ::skip],
-                                x_pos[::skip, ::skip],
-                                cur_true_velocity[::skip, ::skip, 0]/max_vel,
-                                -cur_true_velocity[::skip, ::skip, 1]/max_vel,
-                                # scale=4.0,
-                                scale_units='inches',
-                                color='black')
-            Q._init()
-            assert isinstance(Q.scale, float)
-            axes[0].set_title('Ground truth')
-            axes[0].set_xlabel('x')
-            axes[0].set_ylabel('y')
+            # compute energy
+            for j, cur_method in enumerate(methods):
+                cur_energy = get_energy(results_all_methods[cur_method])
 
-            # predictions
-            # memory-piv-net
-            axes[1].imshow(cur_memory_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-            axes[1].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_memory_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_memory_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='black')
-            axes[1].set_title('Memory-PIVnet')
-            axes[1].set_xlabel('x')
-            axes[1].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_energy - cur_memory_energy).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_energy - cur_memory_energy).mean(axis=None))
-            axes[1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                if cur_method == 'ground_truth':
+                    cmap_range = [np.min(cur_energy), np.max(cur_energy)]
+                    grount_truth_energy = np.copy(cur_energy)
 
-            # lite-flow-net-en
-            axes[2].imshow(cur_lfn_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-            axes[2].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_lfn_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_lfn_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='black')
-            axes[2].set_title('LiteFlowNet-en')
-            axes[2].set_xlabel('x')
-            axes[2].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_energy - cur_lfn_energy).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_energy - cur_lfn_energy).mean(axis=None))
-            axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                # superimpose quiver plot on color-coded images
+                x = np.linspace(0, img_size-1, img_size)
+                y = np.linspace(0, img_size-1, img_size)
+                y_pos, x_pos = np.meshgrid(x, y)
+                axes[j].imshow(cur_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
+                Q = axes[j].quiver(y_pos[::skip, ::skip],
+                                    x_pos[::skip, ::skip],
+                                    results_all_methods[cur_method][::skip, ::skip, 0]/max_truth,
+                                    -results_all_methods[cur_method][::skip, ::skip, 1]/max_truth,
+                                    # scale=4.0,
+                                    scale_units='inches',
+                                    color='black')
+                Q._init()
+                assert isinstance(Q.scale, float)
+                axes[j].set_title('Ground truth')
+                axes[j].set_xlabel('x')
+                axes[j].set_ylabel('y')
 
-            # pyramid
-            axes[3].imshow(cur_pyramid_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-            axes[3].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_pyramid_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_pyramid_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='black')
-            axes[3].set_title('Pyramid (output scaled 30x)')
-            axes[3].set_xlabel('x')
-            axes[3].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_energy - cur_pyramid_energy).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_energy - cur_pyramid_energy).mean(axis=None))
-            axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-
-
-            # cross-correlation
-            axes[4].imshow(cur_cc_energy, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-            axes[4].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_cc_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_cc_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches')
-            axes[4].set_title('Cross-correlation (output scaled 30x)')
-            axes[4].set_xlabel('x')
-            axes[4].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE(Energy)':
-                cur_loss = np.square(cur_true_energy - cur_cc_energy).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_energy - cur_cc_energy).mean(axis=None))
-            axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                # compute and annotate loss
+                if loss == 'MSE(Energy)':
+                    cur_loss = np.square(grount_truth_energy - cur_energy).mean(axis=None)
+                elif loss == 'RMSE':
+                    cur_loss = np.sqrt(np.square(grount_truth_energy - cur_energy).mean(axis=None))
+                axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
 
             # save the image
@@ -611,181 +361,31 @@ def main():
             plt.close(fig)
             # print(f'\nEnergy plot has been saved to {energy_path}')
 
-        # vorticity plot
-        if plot_vorticity:
-            # compute energy
-            cur_true_vorticity = compute_vorticity(cur_true_velocity/0.04)
-            cur_memory_vorticity = compute_vorticity(cur_memory_velocity/0.04)
-            cur_lfn_vorticity = compute_vorticity(cur_lfn_velocity/0.04)
-            cur_pyramid_vorticity = compute_vorticity(cur_pyramid_velocity/0.04)
-            cur_cc_vorticity = compute_vorticity(cur_cc_velocity/0.04)
-
-            # plot includes four subplots
-            fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
-            plt.suptitle(f't = {i}')
-            skip = 7
-            cmap_range = [-3e-3, 3e-3]
-
-            # superimpose quiver plot on color-coded images
-            max_vel = np.max(cur_true_velocity)
-            # ground truth
-            x = np.linspace(0, img_size-1, img_size)
-            y = np.linspace(0, img_size-1, img_size)
-            y_pos, x_pos = np.meshgrid(x, y)
-            axes[0].imshow(cur_true_vorticity[..., 0], vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('bwr'))
-            Q = axes[0].quiver(y_pos[::skip, ::skip],
-                                x_pos[::skip, ::skip],
-                                cur_true_velocity[::skip, ::skip, 0]/max_vel,
-                                -cur_true_velocity[::skip, ::skip, 1]/max_vel,
-                                # scale=4.0,
-                                scale_units='inches',
-                                color='black')
-            Q._init()
-            assert isinstance(Q.scale, float)
-            axes[0].set_title('Ground truth')
-            axes[0].set_xlabel('x')
-            axes[0].set_ylabel('y')
-
-            # predictions
-            # memory-piv-net
-            axes[1].imshow(cur_memory_vorticity, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('bwr'))
-            axes[1].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_memory_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_memory_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='black')
-            axes[1].set_title('Memory-PIVnet')
-            axes[1].set_xlabel('x')
-            axes[1].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_vorticity - cur_memory_vorticity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_vorticity - cur_memory_vorticity).mean(axis=None))
-            axes[1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-
-            # lite-flow-net-en
-            axes[2].imshow(cur_lfn_vorticity, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('bwr'))
-            axes[2].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_lfn_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_lfn_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='black')
-            axes[2].set_title('LiteFlowNet-en')
-            axes[2].set_xlabel('x')
-            axes[2].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_vorticity - cur_lfn_vorticity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_vorticity - cur_lfn_vorticity).mean(axis=None))
-            axes[2].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-
-            # pyramid
-            axes[3].imshow(cur_pyramid_vorticity, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('bwr'))
-            axes[3].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_pyramid_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_pyramid_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches',
-                            color='black')
-            axes[3].set_title('Pyramid (output scaled 30x)')
-            axes[3].set_xlabel('x')
-            axes[3].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE':
-                cur_loss = np.square(cur_true_vorticity - cur_pyramid_vorticity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_vorticity - cur_pyramid_vorticity).mean(axis=None))
-            axes[3].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-
-
-            # cross-correlation
-            axes[4].imshow(cur_cc_vorticity, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('bwr'))
-            axes[4].quiver(y_pos[::skip, ::skip],
-                            x_pos[::skip, ::skip],
-                            cur_cc_velocity[::skip, ::skip, 0]/max_vel,
-                            -cur_cc_velocity[::skip, ::skip, 1]/max_vel,
-                            scale=Q.scale,
-                            scale_units='inches')
-            axes[4].set_title('Cross-correlation (output scaled 30x)')
-            axes[4].set_xlabel('x')
-            axes[4].set_ylabel('y')
-            # compute and annotate loss
-            if loss == 'MSE(Energy)':
-                cur_loss = np.square(cur_true_vorticity - cur_cc_vorticity).mean(axis=None)
-            elif loss == 'RMSE':
-                cur_loss = np.sqrt(np.square(cur_true_vorticity - cur_cc_vorticity).mean(axis=None))
-            axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-
-
-            # save the image
-            vorticity_dir = os.path.join(figs_dir, 'vorticity_plot')
-            os.makedirs(vorticity_dir, exist_ok=True)
-            vorticity_path = os.path.join(vorticity_dir, f'vorticity_{str(i).zfill(4)}.png')
-            plt.savefig(vorticity_path, bbox_inches='tight', dpi=my_dpi)
-            fig.clf()
-            plt.close(fig)
-            # print(f'\nEnergy plot has been saved to {energy_path}')
 
         # velocity error line plot
-        if plot_velocity_error_line_plot:
-            if loss == 'MSE':
-                memory_vel_errors.append(np.square(cur_true_velocity - cur_memory_velocity).mean(axis=None))
-                lfn_vel_errors.append(np.square(cur_true_velocity - cur_lfn_velocity).mean(axis=None))
-                pyramid_vel_errors.append(np.square(cur_true_velocity - cur_pyramid_velocity).mean(axis=None))
-                cc_vel_errors.append(np.square(cur_true_velocity - cur_cc_velocity).mean(axis=None))
-            elif loss == 'RMSE':
-                memory_vel_errors.append(np.sqrt(np.square(cur_true_velocity - cur_memory_velocity).mean(axis=None)))
-                lfn_vel_errors.append(np.sqrt(np.square(cur_true_velocity - cur_lfn_velocity).mean(axis=None)))
-                pyramid_vel_errors.append(np.sqrt(np.square(cur_true_velocity - cur_pyramid_velocity).mean(axis=None)))
-                cc_vel_errors.append(np.sqrt(np.square(cur_true_velocity - cur_cc_velocity).mean(axis=None)))
+        if plot_error_line_plot:
+            for j, cur_method in enumerate(methods):
+                if loss == 'MSE':
+                    errors_all_methods[cur_method].append(np.square(results_all_methods['ground_truth'] - results_all_methods[cur_method]).mean(axis=None))
+                elif loss == 'RMSE':
+                    errors_all_methods[cur_method].append(np.sqrt(np.square(results_all_methods['ground_truth'] - results_all_methods[cur_method]).mean(axis=None)))
 
-        # vorticity error line plot
-        if plot_vorticity_error_line_plot:
-            if loss == 'MSE':
-                memory_vor_errors.append(np.square(cur_true_vorticity - cur_memory_vorticity).mean(axis=None))
-                lfn_vor_errors.append(np.square(cur_true_vorticity - cur_lfn_vorticity).mean(axis=None))
-                pyramid_vor_errors.append(np.square(cur_true_vorticity - cur_pyramid_vorticity).mean(axis=None))
-                cc_vor_errors.append(np.square(cur_true_vorticity - cur_cc_vorticity).mean(axis=None))
-            elif loss == 'RMSE':
-                memory_vor_errors.append(np.sqrt(np.square(cur_true_vorticity - cur_memory_vorticity).mean(axis=None)))
-                lfn_vor_errors.append(np.sqrt(np.square(cur_true_vorticity - cur_lfn_vorticity).mean(axis=None)))
-                pyramid_vor_errors.append(np.sqrt(np.square(cur_true_vorticity - cur_pyramid_vorticity).mean(axis=None)))
-                cc_vor_errors.append(np.sqrt(np.square(cur_true_vorticity - cur_cc_vorticity).mean(axis=None)))
-
-
-    if plot_velocity_error_line_plot:
+    if plot_error_line_plot:
         fig, ax = plt.subplots()
-        ax.plot(vis_frame, memory_vel_errors, label='Memory-PIVnet')
-        ax.plot(vis_frame, lfn_vel_errors, label='LiteFlowNet-en')
-        ax.plot(vis_frame, pyramid_vel_errors, label='Pyramid')
-        ax.plot(vis_frame, cc_vel_errors, label='CC')
+        plt.suptitle(f'Energy plot at t = {i}')
+        vis_frame = time_range.copy()
+        for j in non_vis_frame:
+            vis_frame.remove(j)
+
+        for j, cur_method in enumerate(methods):
+            ax.plot(vis_frame, errors_all_methods[cur_method], label=f'{cur_method}')
+
         ax.set(xlabel='timestamp', ylabel=f'{loss}')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         plt.legend()
-        vel_loss_curve_path = os.path.join(figs_dir, f'all_frame_velocity_losses.png')
+        vel_loss_curve_path = os.path.join(figs_dir, f'all_frames_{mode}_losses.png')
         fig.savefig(vel_loss_curve_path, bbox_inches='tight', dpi=my_dpi)
-        print(f'\nVelocity losses of all frames plot has been saved to {vel_loss_curve_path}')
-
-
-    if plot_vorticity_error_line_plot:
-        fig, ax = plt.subplots()
-        ax.plot(vis_frame, memory_vor_errors, label='Memory-PIVnet')
-        ax.plot(vis_frame, lfn_vor_errors, label='LiteFlowNet-en')
-        ax.plot(vis_frame, pyramid_vor_errors, label='Pyramid')
-        ax.plot(vis_frame, cc_vor_errors, label='CC')
-        ax.set(xlabel='timestamp', ylabel=f'{loss}')
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        plt.legend()
-        vor_loss_curve_path = os.path.join(figs_dir, f'all_frame_vorticity_losses.png')
-        fig.savefig(vor_loss_curve_path, bbox_inches='tight', dpi=my_dpi)
-        print(f'\nVorticity losses of all frames plot has been saved to {vor_loss_curve_path}')
+        print(f'\n{mode} losses of all frames plot has been saved to {vel_loss_curve_path}')
 
 
 if __name__ == "__main__":
