@@ -14,6 +14,7 @@
 *.png
 *.svg
 *.npy
+*.npz
 
 # tensorboard log
 # logs/
