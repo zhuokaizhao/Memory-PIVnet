@@ -30,12 +30,12 @@ def get_energy(velocity):
 
 
 # return all_vorticity_fields
-def compute_vorticity(cur_velocity_field):
+def compute_vorticity(cur_velocity_field, xx, yy):
     # all_velocity_fields has shape (height, width, 2)
-    num_rows = cur_velocity_field.shape[0]
-    num_cols = cur_velocity_field.shape[1]
-    x, y = list(range(num_cols)), list(range(num_rows))
-    xx, yy = np.meshgrid(x, y)
+    # num_rows = cur_velocity_field.shape[0]
+    # num_cols = cur_velocity_field.shape[1]
+    # x, y = list(range(num_cols)), list(range(num_rows))
+    # xx, yy = np.meshgrid(x, y)
 
     # curl function takes (dim, num_rows, num_cols)
     udata = np.moveaxis(cur_velocity_field, [0, 1, 2], [1, 2, 0])
@@ -69,7 +69,7 @@ def main():
         ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vel_field/'
         # list of methods
         methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'cross_correlation']
-        result_paths = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
+        result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/cross_correlation/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
@@ -77,8 +77,9 @@ def main():
     elif mode == 'vorticity':
         ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vor_field/'
         # list of methods
-        methods = ['memory-piv-net', 'pyramid', 'cross_correlation']
-        result_paths = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vor_field/',
+        methods = ['memory-piv-net', 'memory-piv-net-velocity', 'pyramid', 'cross_correlation']
+        result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vor_field/',
+                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/cross_correlation/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
     else:
@@ -86,7 +87,7 @@ def main():
 
 
     # sanity check
-    if len(methods) != len(result_paths):
+    if len(methods) != len(result_dirs):
         raise Exception(f'Number of methods should equal to number of result paths')
 
     # start and end time (both inclusive)
@@ -118,7 +119,7 @@ def main():
         plot_error_line_plot = True
 
     # loaded velocity fields
-    ground_truth = []
+    ground_truth = {}
     results_all_methods = {}
     if plot_error_line_plot:
         errors_all_methods = {}
@@ -126,39 +127,49 @@ def main():
     # load ground truth
     for t in range(time_range[0], time_range[1]+1):
         cur_path = os.path.join(ground_truth_path, f'true_{mode}_{t}.npz')
-        ground_truth.append(np.load(cur_path)[f'{mode}'])
+        ground_truth[str(t)] = np.load(cur_path)[f'{mode}']
 
-    ground_truth = np.array(ground_truth)
-    print(f'Loaded ground truth {mode} has shape {ground_truth.shape}')
+    # when computing vorticity, xx and yy grids are required
+    if mode == 'vorticity':
+        with h5py.File(result_dirs[2], mode='r') as f:
+            xx, yy = f['x'][...], f['y'][...]
+
+    print(f'Loaded ground truth {mode} has shape ({len(ground_truth)}, {ground_truth[str(time_range[0])].shape})')
+
 
     # load results from each method
     for i, cur_method in enumerate(methods):
 
-        results_all_methods[cur_method] = []
+        results_all_methods[cur_method] = {}
         errors_all_methods[cur_method] = []
 
         if cur_method == 'memory-piv-net':
             # load the velocity fields of the specified time range
             for t in range(time_range[0], time_range[1]+1):
-                cur_path = os.path.join(result_paths[i], f'test_{mode}_blend_{t}.npz')
-                results_all_methods[cur_method].append(np.load(cur_path)[f'{mode}'])
+                cur_path = os.path.join(result_dirs[i], f'test_{mode}_blend_{t}.npz')
+                results_all_methods[cur_method][str(t)] = np.load(cur_path)[f'{mode}']
 
-            results_all_methods[cur_method] = np.array(results_all_methods[cur_method])
+        if cur_method == 'memory-piv-net-velocity':
+
+            # load the velocity fields of the specified time range
+            for t in range(time_range[0], time_range[1]+1):
+                cur_path = os.path.join(result_dirs[i], f'test_velocity_blend_{t}.npz')
+                cur_velocity = np.load(cur_path)['velocity']
+
+                # compute vorticity from it
+                results_all_methods[cur_method][str(t)] = compute_vorticity(cur_velocity, xx, yy)
 
         if cur_method == 'LiteFlowNet-en':
             # load the velocity fields of the specified time range
             for t in range(time_range[0], time_range[1]+1):
-                cur_path = os.path.join(result_paths[i], f'lfn_{mode}_{t}.npz')
-                results_all_methods[cur_method].append(np.load(cur_path)[f'{mode}'])
-
-            results_all_methods[cur_method] = np.array(results_all_methods[cur_method])
+                cur_path = os.path.join(result_dirs[i], f'lfn_{mode}_{t}.npz')
+                results_all_methods[cur_method][str(t)] = np.load(cur_path)[f'{mode}']
 
         # for pyramid and standar methods
         elif cur_method == 'pyramid' or cur_method == 'cross_correlation':
-            cur_path = result_paths[i]
+            cur_path = result_dirs[i]
             with h5py.File(cur_path, mode='r') as f:
                 # print('The h5 file contains ', list(f.keys()))
-                xx, yy = f['x'][...], f['y'][...]
                 ux, uy = f['ux'][...], f['uy'][...]
 
             cur_velocity = np.stack((ux, uy))
@@ -169,21 +180,23 @@ def main():
             cur_velocity = cur_velocity.repeat(ratio, axis=1).repeat(ratio, axis=2)
 
             if mode == 'velocity':
-                results_all_methods[cur_method] = cur_velocity
+                results_all_methods[cur_method][str(t)] = cur_velocity
             elif mode == 'vorticity':
                 # compute vorticity from velocity
-                for j in range(time_range[0], time_range[1]+1):
-                    results_all_methods[cur_method].append(compute_vorticity(cur_velocity[j]))
-
-                results_all_methods[cur_method] = np.array(results_all_methods[cur_method])
+                for t in range(time_range[0], time_range[1]+1):
+                    results_all_methods[cur_method][str(t)] = compute_vorticity(cur_velocity[t], xx, yy)
 
     # print all the shapes
     for i, cur_method in enumerate(methods):
-        print(f'Loaded {cur_method} {mode} has shape {results_all_methods[cur_method].shape}')
+        print(f'Loaded {cur_method} {mode} has shape ({len(results_all_methods[cur_method])}, {results_all_methods[cur_method][str(time_range[0])].shape})')
 
     # max velocity from ground truth is useful for normalization
-    max_truth = np.max(ground_truth)*0.3
-    min_truth = np.min(ground_truth)*0.3
+    if mode == 'velocity':
+        max_truth = np.max(ground_truth)*0.3
+        min_truth = np.min(ground_truth)*0.3
+    elif mode == 'vorticity':
+        max_truth = 0.5
+        min_truth = -0.5
 
     # visualizing the results
     for i in tqdm(vis_frames):
@@ -207,8 +220,8 @@ def main():
                 axes[0].imshow(test_image, 'gray')
                 Q = axes[j].quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
-                                    results_all_methods[cur_method][i][::skip, ::skip, 0]/max_truth,
-                                    -results_all_methods[cur_method][i][::skip, ::skip, 1]/max_truth,
+                                    results_all_methods[cur_method][str(i)][::skip, ::skip, 0]/max_truth,
+                                    -results_all_methods[cur_method][str(i)][::skip, ::skip, 1]/max_truth,
                                     # scale=4.0,
                                     scale_units='inches',
                                     color='green')
@@ -221,9 +234,9 @@ def main():
                 # label error when not ground truth
                 if cur_method != 'ground_truth':
                     if loss == 'MSE':
-                        cur_loss = np.square(ground_truth[i] - results_all_methods[cur_method][i]).mean(axis=None)
+                        cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
                     elif loss == 'RMSE':
-                        cur_loss = np.sqrt(np.square(ground_truth[i] - results_all_methods[cur_method][i]).mean(axis=None))
+                        cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
                     axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
             # save the image
@@ -244,7 +257,7 @@ def main():
 
             # visualize ground truth
             if mode == 'velocity':
-                flow_vis, _ = plot.visualize_flow(ground_truth[i], max_vel=max_truth)
+                flow_vis, _ = plot.visualize_flow(ground_truth[str(i)], max_vel=max_truth)
                 # convert to Image
                 flow_vis_image = Image.fromarray(flow_vis)
                 # show the image
@@ -256,8 +269,8 @@ def main():
                 y_pos, x_pos = np.meshgrid(x, y)
                 Q = axes[j].quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
-                                    results_all_methods[cur_method][i][::skip, ::skip, 0]/max_truth,
-                                    -results_all_methods[cur_method][i][::skip, ::skip, 1]/max_truth,
+                                    results_all_methods[cur_method][str(i)][::skip, ::skip, 0]/max_truth,
+                                    -results_all_methods[cur_method][str(i)][::skip, ::skip, 1]/max_truth,
                                     # scale=4.0,
                                     scale_units='inches')
                 Q._init()
@@ -268,7 +281,7 @@ def main():
 
             elif mode == 'vorticity':
                 # vorticity simply uses a heatmap-like color encoding
-                axes[0].imshow(ground_truth[i], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('viridis'))
+                axes[0].imshow(ground_truth[str(i)], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('bwr'))
                 axes[0].set_title(f'Ground truth')
                 axes[0].set_xlabel('x')
                 axes[0].set_ylabel('y')
@@ -276,7 +289,7 @@ def main():
             # for each method
             for j, cur_method in enumerate(methods):
                 if mode == 'velocity':
-                    flow_vis, _ = plot.visualize_flow(results_all_methods[cur_method][i], max_vel=max_truth)
+                    flow_vis, _ = plot.visualize_flow(results_all_methods[cur_method][str(i)], max_vel=max_truth)
                     # convert to Image
                     flow_vis_image = Image.fromarray(flow_vis)
                     # show the image
@@ -288,8 +301,8 @@ def main():
                     y_pos, x_pos = np.meshgrid(x, y)
                     Q = axes[j].quiver(y_pos[::skip, ::skip],
                                         x_pos[::skip, ::skip],
-                                        results_all_methods[cur_method][i][::skip, ::skip, 0]/max_truth,
-                                        -results_all_methods[cur_method][i][::skip, ::skip, 1]/max_truth,
+                                        results_all_methods[cur_method][str(i)][::skip, ::skip, 0]/max_truth,
+                                        -results_all_methods[cur_method][str(i)][::skip, ::skip, 1]/max_truth,
                                         # scale=4.0,
                                         scale_units='inches')
                     Q._init()
@@ -300,18 +313,21 @@ def main():
 
                 elif mode == 'vorticity':
                     # vorticity simply uses a heatmap-like color encoding
-                    axes[j+1].imshow(results_all_methods[cur_method][i], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('viridis'))
+                    axes[j+1].imshow(results_all_methods[cur_method][str(i)], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('bwr'))
                     axes[j+1].set_title(f'{cur_method}')
                     axes[j+1].set_xlabel('x')
                     axes[j+1].set_ylabel('y')
 
                 # label error
                 if loss == 'MSE':
-                    cur_loss = np.square(ground_truth[i] - results_all_methods[cur_method][i]).mean(axis=None)
+                    cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
                 elif loss == 'RMSE':
-                    cur_loss = np.sqrt(np.square(ground_truth[i] - results_all_methods[cur_method][i]).mean(axis=None))
+                    cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
 
-                axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                if mode == 'velocity':
+                    axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                elif mode == 'vorticity':
+                    axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
 
             # save the image
             color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded')
@@ -328,15 +344,16 @@ def main():
             # plot includes number of methods - 1 (no ground truth) subplots
             fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
             plt.suptitle(f'{mode} average endpoint error at t = {i}')
-            cmap_range = [0, 40]
 
             for j, cur_method in enumerate(methods):
 
                 # average end point error for all the outputs
                 if mode == 'velocity':
-                    cur_method_aee = np.sqrt((results_all_methods[cur_method][i][:,:,0]-ground_truth[i][:,:,0])**2 + (results_all_methods[cur_method][i][:,:,1]-ground_truth[i][:,:,1])**2)
+                    cmap_range = [0, 1]
+                    cur_method_aee = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2 + (results_all_methods[cur_method][str(i)][:,:,1]-ground_truth[str(i)][:,:,1])**2)
                 elif mode == 'vorticity':
-                    cur_method_aee = np.sqrt((results_all_methods[cur_method][i][:,:,0]-ground_truth[i][:,:,0])**2)
+                    cmap_range = [0, 1]
+                    cur_method_aee = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2)
 
                 axes[j].imshow(cur_method_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
                 axes[j].set_title(f'{cur_method}')
@@ -366,7 +383,7 @@ def main():
             skip = 7
 
             # compute energy for ground truth
-            ground_truth_energy = get_energy(ground_truth[i])
+            ground_truth_energy = get_energy(ground_truth[str(i)])
             energy_cmap_range = [np.min(ground_truth_energy), np.max(ground_truth_energy)]
 
             # superimpose quiver plot on color-coded images
@@ -376,8 +393,8 @@ def main():
             axes[0].imshow(ground_truth_energy, vmin=energy_cmap_range[0], vmax=energy_cmap_range[1], cmap=plt.get_cmap('viridis'))
             Q = axes[j+1].quiver(y_pos[::skip, ::skip],
                                 x_pos[::skip, ::skip],
-                                ground_truth[i][::skip, ::skip, 0]/max_truth,
-                                -ground_truth[i][::skip, ::skip, 1]/max_truth,
+                                ground_truth[str(i)][::skip, ::skip, 0]/max_truth,
+                                -ground_truth[str(i)][::skip, ::skip, 1]/max_truth,
                                 # scale=4.0,
                                 scale_units='inches',
                                 color='black')
@@ -389,12 +406,12 @@ def main():
 
             # plot each prediction method
             for j, cur_method in enumerate(methods):
-                cur_energy = get_energy(results_all_methods[cur_method][i])
+                cur_energy = get_energy(results_all_methods[cur_method][str(i)])
                 axes[j+1].imshow(cur_energy, vmin=energy_cmap_range[0], vmax=energy_cmap_range[1], cmap=plt.get_cmap('viridis'))
                 Q = axes[j+1].quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
-                                    results_all_methods[cur_method][i][::skip, ::skip, 0]/max_truth,
-                                    -results_all_methods[cur_method][i][::skip, ::skip, 1]/max_truth,
+                                    results_all_methods[cur_method][str(i)][::skip, ::skip, 0]/max_truth,
+                                    -results_all_methods[cur_method][str(i)][::skip, ::skip, 1]/max_truth,
                                     # scale=4.0,
                                     scale_units='inches',
                                     color='black')
@@ -426,9 +443,9 @@ def main():
         if plot_error_line_plot:
             for j, cur_method in enumerate(methods):
                 if loss == 'MSE':
-                    errors_all_methods[cur_method].append(np.square(ground_truth[i] - results_all_methods[cur_method][i]).mean(axis=None))
+                    errors_all_methods[cur_method].append(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
                 elif loss == 'RMSE':
-                    errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth[i] - results_all_methods[cur_method][i]).mean(axis=None)))
+                    errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)))
 
     if plot_error_line_plot:
         fig, ax = plt.subplots()
