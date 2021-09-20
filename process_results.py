@@ -41,7 +41,7 @@ def compute_vorticity(cur_velocity_field, xx, yy):
     udata = np.moveaxis(cur_velocity_field, [0, 1, 2], [1, 2, 0])
     cur_vorticity = vorticity.curl(udata, xx=xx, yy=yy)
 
-    return cur_vorticity
+    return np.array(cur_vorticity)
 
 
 def main():
@@ -172,19 +172,19 @@ def main():
                 # print('The h5 file contains ', list(f.keys()))
                 ux, uy = f['ux'][...], f['uy'][...]
 
-            cur_velocity = np.stack((ux, uy))
-            cur_velocity = np.moveaxis(cur_velocity, [0, 1, 2, 3], [3, 1, 2, 0])
+            velocity = np.stack((ux, uy))
+            velocity = np.moveaxis(velocity, [0, 1, 2, 3], [3, 1, 2, 0])
 
             # upsampling pyramid or cc results to full image resolution by duplicating
-            ratio = img_size // cur_velocity.shape[1]
-            cur_velocity = cur_velocity.repeat(ratio, axis=1).repeat(ratio, axis=2)
-
-            if mode == 'velocity':
-                results_all_methods[cur_method][str(t)] = cur_velocity
-            elif mode == 'vorticity':
-                # compute vorticity from velocity
-                for t in range(time_range[0], time_range[1]+1):
-                    results_all_methods[cur_method][str(t)] = compute_vorticity(cur_velocity[t], xx, yy)
+            ratio = img_size // velocity.shape[1]
+            for t in range(time_range[0], time_range[1]+1):
+                if mode == 'velocity':
+                    cur_velocity = velocity[t].repeat(ratio, axis=0).repeat(ratio, axis=1)
+                    results_all_methods[cur_method][str(t)] = cur_velocity
+                elif mode == 'vorticity':
+                    # compute vorticity from velocity
+                    cur_vorticity = compute_vorticity(velocity[t], xx, yy)
+                    results_all_methods[cur_method][str(t)] = cur_vorticity.repeat(ratio, axis=0).repeat(ratio, axis=1)
 
     # print all the shapes
     for i, cur_method in enumerate(methods):
