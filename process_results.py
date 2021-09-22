@@ -112,11 +112,17 @@ def main():
         plot_energy = True
         plot_error_line_plot = True
     elif mode == 'vorticity':
+        # plot_image_quiver = False
+        # plot_color_encoded = True
+        # plot_aee_heatmap = True
+        # plot_energy = False
+        # plot_error_line_plot = True
         plot_image_quiver = False
-        plot_color_encoded = True
-        plot_aee_heatmap = True
+        plot_color_encoded = False
+        plot_aee_heatmap = False
         plot_energy = False
-        plot_error_line_plot = True
+        plot_error_line_plot = False
+        plot_probability_density = True
 
     # loaded velocity fields
     ground_truth = {}
@@ -141,7 +147,8 @@ def main():
     for i, cur_method in enumerate(methods):
 
         results_all_methods[cur_method] = {}
-        errors_all_methods[cur_method] = []
+        if plot_error_line_plot:
+            errors_all_methods[cur_method] = []
 
         if cur_method == 'memory-piv-net':
             # load the velocity fields of the specified time range
@@ -195,8 +202,8 @@ def main():
         max_truth = np.max(ground_truth)*0.3
         min_truth = np.min(ground_truth)*0.3
     elif mode == 'vorticity':
-        max_truth = 0.5
-        min_truth = -0.5
+        max_truth = 1
+        min_truth = -1
 
     # visualizing the results
     for i in tqdm(vis_frames):
@@ -247,6 +254,7 @@ def main():
             fig.clf()
             plt.close(fig)
             # print(f'\nSuperimposed test quiver plot has been saved to {test_quiver_path}')
+
 
         # color encoding plots
         if plot_color_encoded:
@@ -338,6 +346,7 @@ def main():
             plt.close(fig)
             # print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
 
+
         # aee heatmap plot
         if plot_aee_heatmap:
 
@@ -373,6 +382,7 @@ def main():
             fig.clf()
             plt.close(fig)
             # print(f'\nAEE plot has been saved to {aee_path}')
+
 
         # energy plot
         if plot_energy:
@@ -426,7 +436,14 @@ def main():
                     cur_loss = np.square(ground_truth_energy - cur_energy).mean(axis=None)
                 elif loss == 'RMSE':
                     cur_loss = np.sqrt(np.square(ground_truth_energy - cur_energy).mean(axis=None))
-                axes[4].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                elif loss == 'RMSE_relative':
+                    cur_loss = np.sqrt(np.square(ground_truth_energy - cur_energy).mean(axis=None)) / ground_truth_energy.mean(axis=None)
+
+                # add annotation
+                if loss == 'RMSE_relative':
+                    axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                else:
+                    axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss) + '%', (5, 10), color='white', fontsize='medium')
 
 
             # save the image
@@ -436,7 +453,6 @@ def main():
             plt.savefig(energy_path, bbox_inches='tight', dpi=my_dpi)
             fig.clf()
             plt.close(fig)
-            # print(f'\nEnergy plot has been saved to {energy_path}')
 
 
         # velocity error line plot
@@ -446,6 +462,35 @@ def main():
                     errors_all_methods[cur_method].append(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
                 elif loss == 'RMSE':
                     errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)))
+
+
+        # plot the pdf of the array
+        if plot_probability_density:
+
+            fig, ax = plt.subplots()
+            plt.suptitle(f'Probability density at t = {i}')
+            num_bins = 100
+
+            # plot the ground truth first
+            gt_hist, bins = np.histogram(ground_truth[str(i)].flatten(), num_bins, density=True)
+            ax.plot(bins[:num_bins], gt_hist, label='ground truth')
+
+            # plot each prediction method
+            for j, cur_method in enumerate(methods):
+                cur_hist, _ = np.histogram(results_all_methods[cur_method][str(i)].flatten(), bins=bins, density=True)
+                ax.plot(bins[:num_bins], cur_hist, label=cur_method)
+
+            plt.legend()
+            plt.xlabel('Vorticity')
+            plt.ylabel('Probability density')
+            plt.yscale('log')
+            pdf_dir = os.path.join(output_dir, 'probability_density')
+            os.makedirs(pdf_dir, exist_ok=True)
+            pdf_path = os.path.join(pdf_dir, f'pdf_{str(i).zfill(4)}.png')
+            plt.savefig(pdf_path, bbox_inches='tight', dpi=my_dpi)
+            fig.clf()
+            plt.close(fig)
+
 
     if plot_error_line_plot:
         fig, ax = plt.subplots()
