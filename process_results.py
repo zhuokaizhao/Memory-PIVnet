@@ -106,22 +106,19 @@ def main():
     # load model testing output
     # different types of visualizations
     if mode == 'velocity':
-        plot_image_quiver = True
+        plot_image_quiver = False
         plot_color_encoded = True
         plot_aee_heatmap = True
         plot_energy = True
         plot_error_line_plot = True
+        plot_result_pdf = True
+        plot_error_pdf = False
     elif mode == 'vorticity':
-        # plot_image_quiver = False
-        # plot_color_encoded = True
-        # plot_aee_heatmap = True
-        # plot_energy = False
-        # plot_error_line_plot = True
         plot_image_quiver = False
-        plot_color_encoded = False
-        plot_aee_heatmap = False
+        plot_color_encoded = True
+        plot_aee_heatmap = True
         plot_energy = False
-        plot_error_line_plot = False
+        plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = True
 
@@ -198,10 +195,22 @@ def main():
     for i, cur_method in enumerate(methods):
         print(f'Loaded {cur_method} {mode} has shape ({len(results_all_methods[cur_method])}, {results_all_methods[cur_method][str(time_range[0])].shape})')
 
+    # save npz if needed
+    # result_path = os.path.join(output_dir, 'vorticity_slice.npz')
+    # np.savez(result_path,
+    #          ground_truth=ground_truth['0'],
+    #          memory_piv_net=results_all_methods['memory-piv-net']['0'],
+    #          memory_piv_net_velocity=results_all_methods['memory-piv-net-velocity']['0'],
+    #          pyramid=results_all_methods['pyramid']['0'],
+    #          cross_correlation=results_all_methods['cross_correlation']['0'])
+    # print(results_all_methods['memory-piv-net']['0'].mean())
+    # print(results_all_methods['memory-piv-net-velocity']['0'].mean())
+    # exit()
+
     # max velocity from ground truth is useful for normalization
     if mode == 'velocity':
-        max_truth = np.max(ground_truth)*0.3
-        min_truth = np.min(ground_truth)*0.3
+        max_truth = 3
+        min_truth = -3
     elif mode == 'vorticity':
         max_truth = 1
         min_truth = -1
@@ -215,7 +224,7 @@ def main():
             test_image = Image.open(test_image_path)
 
             # each method is a subplot
-            fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
+            fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1, figsize=(5*(len(methods)+1), 5))
             plt.suptitle(f'Particle image quiver plot at t = {i}')
             skip = 7
 
@@ -241,11 +250,13 @@ def main():
 
                 # label error when not ground truth
                 if cur_method != 'ground_truth':
-                    if loss == 'MSE':
+                    if loss == 'MAE':
+                        cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
+                    elif loss == 'MSE':
                         cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
                     elif loss == 'RMSE':
                         cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
-                    axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                    axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
 
             # save the image
             test_quiver_dir = os.path.join(output_dir, 'test_quiver')
@@ -276,7 +287,7 @@ def main():
                 x = np.linspace(0, img_size-1, img_size)
                 y = np.linspace(0, img_size-1, img_size)
                 y_pos, x_pos = np.meshgrid(x, y)
-                Q = axes[j].quiver(y_pos[::skip, ::skip],
+                Q = axes[0].quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
                                     results_all_methods[cur_method][str(i)][::skip, ::skip, 0]/max_truth,
                                     -results_all_methods[cur_method][str(i)][::skip, ::skip, 1]/max_truth,
@@ -328,13 +339,15 @@ def main():
                     axes[j+1].set_ylabel('y')
 
                 # label error
-                if loss == 'MSE':
+                if loss == 'MAE':
+                    cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
+                elif loss == 'MSE':
                     cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
                 elif loss == 'RMSE':
                     cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
 
                 if mode == 'velocity':
-                    axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
+                    axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
                 elif mode == 'vorticity':
                     axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
 
@@ -359,7 +372,7 @@ def main():
 
                 # average end point error for all the outputs
                 if mode == 'velocity':
-                    cmap_range = [0, 1]
+                    cmap_range = [0, 2]
                     cur_method_aee = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2 + (results_all_methods[cur_method][str(i)][:,:,1]-ground_truth[str(i)][:,:,1])**2)
                 elif mode == 'vorticity':
                     cmap_range = [0, 1]
@@ -389,7 +402,7 @@ def main():
         if plot_energy:
 
             # plot includes four subplots
-            fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
+            fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1, figsize=(5*(len(methods)+1), 5))
             plt.suptitle(f'Energy plot at t = {i}')
             skip = 7
 
@@ -402,7 +415,7 @@ def main():
             y = np.linspace(0, img_size-1, img_size)
             y_pos, x_pos = np.meshgrid(x, y)
             axes[0].imshow(ground_truth_energy, vmin=energy_cmap_range[0], vmax=energy_cmap_range[1], cmap=plt.get_cmap('viridis'))
-            Q = axes[j+1].quiver(y_pos[::skip, ::skip],
+            Q = axes[0].quiver(y_pos[::skip, ::skip],
                                 x_pos[::skip, ::skip],
                                 ground_truth[str(i)][::skip, ::skip, 0]/max_truth,
                                 -ground_truth[str(i)][::skip, ::skip, 1]/max_truth,
@@ -428,23 +441,20 @@ def main():
                                     color='black')
                 Q._init()
                 assert isinstance(Q.scale, float)
-                axes[j].set_title('Ground truth')
-                axes[j].set_xlabel('x')
-                axes[j].set_ylabel('y')
+                axes[j+1].set_title(f'{cur_method}')
+                axes[j+1].set_xlabel('x')
+                axes[j+1].set_ylabel('y')
 
                 # compute and annotate loss
-                if loss == 'MSE(Energy)':
+                if loss == 'MAE':
+                    cur_loss = np.abs(ground_truth_energy - cur_energy).mean(axis=None)
+                elif loss == 'MSE':
                     cur_loss = np.square(ground_truth_energy - cur_energy).mean(axis=None)
                 elif loss == 'RMSE':
                     cur_loss = np.sqrt(np.square(ground_truth_energy - cur_energy).mean(axis=None))
-                elif loss == 'RMSE_relative':
-                    cur_loss = np.sqrt(np.square(ground_truth_energy - cur_energy).mean(axis=None)) / ground_truth_energy.mean(axis=None)
 
                 # add annotation
-                if loss == 'RMSE_relative':
-                    axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
-                else:
-                    axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss) + '%', (5, 10), color='white', fontsize='medium')
+                axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
 
             # save the image
@@ -459,7 +469,9 @@ def main():
         # velocity error line plot
         if plot_error_line_plot:
             for j, cur_method in enumerate(methods):
-                if loss == 'MSE':
+                if loss == 'MAE':
+                    errors_all_methods[cur_method].append(np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
+                elif loss == 'MSE':
                     errors_all_methods[cur_method].append(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
                 elif loss == 'RMSE':
                     errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)))
@@ -468,26 +480,39 @@ def main():
         # plot result pdf
         if plot_result_pdf:
 
-            fig, ax = plt.subplots()
-            plt.suptitle(f'Probability density at t = {i}')
             num_bins = 100
 
-            # plot the ground truth first
-            gt_hist, bins = np.histogram(ground_truth[str(i)].flatten(), num_bins, density=True)
-            ax.plot(bins[:num_bins], gt_hist, label='ground truth')
+            if mode == 'velocity':
+                # plot the ground truth first
+                fig, axes = plt.subplots(ncols=2)
+                # plot x and y individually
+                for k in range(2):
+                    gt_hist, bins = np.histogram(ground_truth[str(i)][:, :, k].flatten(), num_bins, density=True)
+                    axes[k].plot(bins[:num_bins], gt_hist, label='ground truth')
 
-            # plot each prediction method
-            for j, cur_method in enumerate(methods):
-                cur_hist, _ = np.histogram(results_all_methods[cur_method][str(i)].flatten(), bins=bins, density=True)
-                ax.plot(bins[:num_bins], cur_hist, label=cur_method)
+                    # plot each prediction method
+                    for j, cur_method in enumerate(methods):
+                        cur_hist, _ = np.histogram(results_all_methods[cur_method][str(i)][:, :, k].flatten(), bins=bins, density=True)
+                        axes[k].plot(bins[:num_bins], cur_hist, label=cur_method)
 
+            elif mode == 'vorticity':
+                fig, ax = plt.subplots()
+                gt_hist, bins = np.histogram(ground_truth[str(i)].flatten(), num_bins, density=True)
+                ax.plot(bins[:num_bins], gt_hist, label='ground truth')
+
+                # plot each prediction method
+                for j, cur_method in enumerate(methods):
+                    cur_hist, _ = np.histogram(results_all_methods[cur_method][str(i)].flatten(), bins=bins, density=True)
+                    ax.plot(bins[:num_bins], cur_hist, label=cur_method)
+
+            plt.suptitle(f'Probability density of {mode} at t = {i}')
             plt.legend()
-            plt.xlabel('Vorticity')
+            plt.xlabel(f'{mode}')
             plt.ylabel('Probability density')
             plt.yscale('log')
-            pdf_dir = os.path.join(output_dir, 'probability_density')
+            pdf_dir = os.path.join(output_dir, f'{mode}_probability_density')
             os.makedirs(pdf_dir, exist_ok=True)
-            pdf_path = os.path.join(pdf_dir, f'pdf_{str(i).zfill(4)}.png')
+            pdf_path = os.path.join(pdf_dir, f'{mode}_pdf_{str(i).zfill(4)}.png')
             plt.savefig(pdf_path, bbox_inches='tight', dpi=my_dpi)
             fig.clf()
             plt.close(fig)
@@ -495,34 +520,57 @@ def main():
 
         # plot error pdf
         if plot_error_pdf:
-            fig, ax = plt.subplots()
-            plt.suptitle(f'Probability density of error ({loss}) at t = {i}')
-            num_bins = 100
 
+            num_bins = 100
 
             # plot each prediction method
             for j, cur_method in enumerate(methods):
-                # compute error
-                if loss == 'MSE':
-                    cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)])
-                elif loss == 'RMSE':
-                    cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]))
+                if mode == 'velocity':
+                    fig, axes = plt.subplots(ncols=2)
+                    for k in range(2):
+                        # compute error
+                        if loss == 'MAE':
+                            cur_loss = np.abs(ground_truth[str(i)][:, :, k] - results_all_methods[cur_method][str(i)][:, :, k]).mean(axis=None)
+                        elif loss == 'MSE':
+                            cur_loss = np.square(ground_truth[str(i)][:, :, k] - results_all_methods[cur_method][str(i)][:, :, k]).mean(axis=None)
+                        elif loss == 'RMSE':
+                            cur_loss = np.sqrt(np.square(ground_truth[str(i)][:, :, k] - results_all_methods[cur_method][str(i)][:, :, k]).mean(axis=None))
 
-                # plot error pdf
-                if j == 0:
-                    cur_hist, bins = np.histogram(cur_loss.flatten(), num_bins, density=True)
-                else:
-                    cur_hist, _ = np.histogram(cur_loss.flatten(), bins=bins, density=True)
+                        # plot error pdf
+                        if j == 0:
+                            cur_hist, bins = np.histogram(cur_loss.flatten(), num_bins, density=True)
+                        else:
+                            cur_hist, _ = np.histogram(cur_loss.flatten(), bins=bins, density=True)
 
-                ax.plot(bins[:num_bins], cur_hist, label=cur_method)
+                        axes[k].plot(bins[:num_bins], cur_hist, label=cur_method)
 
+                elif mode == 'vorticity':
+                    fig, ax = plt.subplots()
+                    # compute error
+                    if loss == 'MAE':
+                        cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
+                    elif loss == 'MSE':
+                        cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
+                    elif loss == 'RMSE':
+                        cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
+
+                    # plot error pdf
+                    if j == 0:
+                        cur_hist, bins = np.histogram(cur_loss.flatten(), num_bins, density=True)
+                    else:
+                        cur_hist, _ = np.histogram(cur_loss.flatten(), bins=bins, density=True)
+
+                    ax.plot(bins[:num_bins], cur_hist, label=cur_method)
+
+            plt.suptitle(f'Probability density of {mode} error ({loss}) at t = {i}')
             plt.legend()
             plt.xlabel(f'{loss}')
             plt.ylabel('Probability density')
+            # plt.xscale('log')
             plt.yscale('log')
-            error_pdf_dir = os.path.join(output_dir, 'error_probability_density')
+            error_pdf_dir = os.path.join(output_dir, f'{mode}_error_probability_density')
             os.makedirs(error_pdf_dir, exist_ok=True)
-            error_pdf_path = os.path.join(error_pdf_dir, f'error_pdf_{str(i).zfill(4)}.png')
+            error_pdf_path = os.path.join(error_pdf_dir, f'{mode}_error_pdf_{str(i).zfill(4)}.png')
             plt.savefig(error_pdf_path, bbox_inches='tight', dpi=my_dpi)
             fig.clf()
             plt.close(fig)
