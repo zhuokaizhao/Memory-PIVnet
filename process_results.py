@@ -122,7 +122,8 @@ def main():
         plot_aee_heatmap = False
         plot_energy = False
         plot_error_line_plot = False
-        plot_probability_density = True
+        plot_result_pdf = False
+        plot_error_pdf = True
 
     # loaded velocity fields
     ground_truth = {}
@@ -464,8 +465,8 @@ def main():
                     errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)))
 
 
-        # plot the pdf of the array
-        if plot_probability_density:
+        # plot result pdf
+        if plot_result_pdf:
 
             fig, ax = plt.subplots()
             plt.suptitle(f'Probability density at t = {i}')
@@ -488,6 +489,41 @@ def main():
             os.makedirs(pdf_dir, exist_ok=True)
             pdf_path = os.path.join(pdf_dir, f'pdf_{str(i).zfill(4)}.png')
             plt.savefig(pdf_path, bbox_inches='tight', dpi=my_dpi)
+            fig.clf()
+            plt.close(fig)
+
+
+        # plot error pdf
+        if plot_error_pdf:
+            fig, ax = plt.subplots()
+            plt.suptitle(f'Probability density of error ({loss}) at t = {i}')
+            num_bins = 100
+
+
+            # plot each prediction method
+            for j, cur_method in enumerate(methods):
+                # compute error
+                if loss == 'MSE':
+                    cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)])
+                elif loss == 'RMSE':
+                    cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]))
+
+                # plot error pdf
+                if j == 0:
+                    cur_hist, bins = np.histogram(cur_loss.flatten(), num_bins, density=True)
+                else:
+                    cur_hist, _ = np.histogram(cur_loss.flatten(), bins=bins, density=True)
+
+                ax.plot(bins[:num_bins], cur_hist, label=cur_method)
+
+            plt.legend()
+            plt.xlabel(f'{loss}')
+            plt.ylabel('Probability density')
+            plt.yscale('log')
+            error_pdf_dir = os.path.join(output_dir, 'error_probability_density')
+            os.makedirs(error_pdf_dir, exist_ok=True)
+            error_pdf_path = os.path.join(error_pdf_dir, f'error_pdf_{str(i).zfill(4)}.png')
+            plt.savefig(error_pdf_path, bbox_inches='tight', dpi=my_dpi)
             fig.clf()
             plt.close(fig)
 
