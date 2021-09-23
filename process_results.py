@@ -119,7 +119,7 @@ def main():
         plot_aee_heatmap = True
         plot_energy = False
         plot_error_line_plot = True
-        plot_result_pdf = False
+        plot_result_pdf = True
         plot_error_pdf = True
 
     # loaded velocity fields
