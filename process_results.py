@@ -194,13 +194,6 @@ def main():
 
     # different types of visualizations
     if mode == 'velocity':
-        # plot_image_quiver = False
-        # plot_color_encoded = True
-        # plot_aee_heatmap = True
-        # plot_energy = True
-        # plot_error_line_plot = True
-        # plot_result_pdf = True
-        # plot_error_pdf = False
         plot_particle_density = False
         plot_image_quiver = False
         plot_color_encoded = False
@@ -210,15 +203,17 @@ def main():
         plot_result_pdf = False
         plot_error_pdf = False
     elif mode == 'vorticity':
+        blur_vorticity = True
+
         plot_particle_density = False
-        plot_particle_density = True
         plot_image_quiver = False
-        plot_color_encoded = True
-        plot_loss_magnitude_heatmap = True
+        plot_color_encoded = False
+        plot_loss_magnitude_heatmap = False
         plot_energy = False
-        plot_error_line_plot = True
-        plot_result_pdf = True
-        plot_error_pdf = True
+        plot_error_line_plot = False
+        plot_result_pdf = False
+        plot_error_pdf = False
+
 
     # loaded velocity fields
     ground_truth = {}
@@ -316,6 +311,21 @@ def main():
 
     # visualizing the results
     for i in tqdm(vis_frames):
+
+        # determine if blurring true vorticity, where the blurring level is determined by particle counts,
+        # can improve the recovered vorticity accuracy
+        if blur_vorticity:
+            # load the image
+            cur_test_image = all_test_images[i]
+            # count the particles
+            cur_particle_locations = detect_particle_locations(cur_test_image, vis=False)
+            num_particles = len(cur_particle_locations)
+            # square root the number of particles
+            sqrt_num_particles = np.sqrt(num_particles)
+            # compute the ratio
+            ratio = 256 // sqrt_num_particles
+            # blur true vorticity by this ratio
+
 
         # stand-alone particle density plot
         if plot_particle_density:
@@ -751,14 +761,6 @@ def main():
             plt.savefig(error_pdf_path, bbox_inches='tight', dpi=my_dpi)
             fig.clf()
             plt.close(fig)
-
-
-
-
-        # determine if blurring true vorticity, where the blurring level is determined by particle counts,
-        # can improve the recovered vorticity accuracy
-        # if blur_vorticity:
-
 
 
 
