@@ -201,19 +201,20 @@ def main():
         # plot_error_line_plot = True
         # plot_result_pdf = True
         # plot_error_pdf = False
-        plot_particle_density = True
+        plot_particle_density = False
         plot_image_quiver = False
         plot_color_encoded = False
-        plot_aee_heatmap = False
+        plot_loss_magnitude_heatmap = True
         plot_energy = False
-        plot_error_line_plot = True
+        plot_error_line_plot = False
         plot_result_pdf = False
         plot_error_pdf = False
     elif mode == 'vorticity':
+        plot_particle_density = False
         plot_particle_density = True
         plot_image_quiver = False
         plot_color_encoded = True
-        plot_aee_heatmap = True
+        plot_loss_magnitude_heatmap = True
         plot_energy = False
         plot_error_line_plot = True
         plot_result_pdf = True
@@ -316,13 +317,12 @@ def main():
     # visualizing the results
     for i in tqdm(vis_frames):
 
-
         # stand-alone particle density plot
         if plot_particle_density:
 
             # load the image
             cur_test_image = all_test_images[i]
-            cur_particle_locations = detect_particle_locations(cur_test_image, vis=True)
+            cur_particle_locations = detect_particle_locations(cur_test_image, vis=False)
             x = cur_particle_locations[:, 1]
             y = cur_particle_locations[:, 0]
 
@@ -349,6 +349,8 @@ def main():
             os.makedirs(particle_density_dir, exist_ok=True)
             particle_density_path = os.path.join(particle_density_dir, f'particle_density_{str(i).zfill(4)}.png')
             fig.savefig(particle_density_path, bbox_inches='tight', dpi=my_dpi)
+            fig.clf()
+            plt.close(fig)
 
 
         # test image superimposed quiver plot
@@ -494,41 +496,79 @@ def main():
             # print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
 
 
-        # aee heatmap plot
-        if plot_aee_heatmap:
+        # loss heatmap
+        if plot_loss_magnitude_heatmap:
 
             # plot includes number of methods - 1 (no ground truth) subplots
-            fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
+            fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1, figsize=(5*len(methods), 5))
             plt.suptitle(f'{mode} average endpoint error at t = {i}')
 
+            # first subplot is the particle density
+            # load the image
+            cur_test_image = all_test_images[i]
+            cur_particle_locations = detect_particle_locations(cur_test_image, vis=False)
+            x = cur_particle_locations[:, 1]
+            y = cur_particle_locations[:, 0]
+
+            # kernel-density estimate using Gaussian kernels
+            k = gaussian_kde(np.vstack([x, y]))
+            # kernel size
+            kernel_size = 4
+            xi, yi = np.mgrid[x.min():x.max():kernel_size, y.min():y.max():kernel_size]
+            zi = k(np.vstack([xi.flatten(), yi.flatten()]))
+
+            # alpha=0.5 will make the plots semitransparent
+            axes[0].pcolormesh(xi, yi, zi.reshape(xi.shape), alpha=0.5, shading='auto')
+
+            # overlay test image
+            axes[0].imshow(cur_test_image, cmap='gray', aspect='auto', origin='lower')
+            axes[0].invert_yaxis()
+            axes[0].set_aspect('equal', 'box')
+            axes[0].set_title('Particle density plot')
+
+            # loss magnitude plots for each method
             for j, cur_method in enumerate(methods):
 
                 # average end point error for all the outputs
                 if mode == 'velocity':
                     cmap_range = [0, 2]
-                    cur_method_aee = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2 + (results_all_methods[cur_method][str(i)][:,:,1]-ground_truth[str(i)][:,:,1])**2)
+                    if loss == 'MAE':
+                        cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=2)
+                    elif loss == 'MSE':
+                        cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=2)
+                    elif loss == 'RMSE':
+                        cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)])).mean(axis=2)
+                    elif loss == 'AEE':
+                        cur_loss = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2 + (results_all_methods[cur_method][str(i)][:,:,1]-ground_truth[str(i)][:,:,1])**2)
+
                 elif mode == 'vorticity':
                     cmap_range = [0, 0.1]
-                    cur_method_aee = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2)
+                    if loss == 'MAE':
+                        cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)])
+                    elif loss == 'MSE':
+                        cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)])
+                    elif loss == 'RMSE':
+                        cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]))
+                    elif loss == 'AEE':
+                        cur_loss = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2)
 
-                axes[j].imshow(cur_method_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-                axes[j].set_title(f'{cur_method}')
-                axes[j].set_xlabel('x')
-                axes[j].set_ylabel('y')
-                axes[j].annotate(f'AEE: ' + '{:.3f}'.format(cur_method_aee.mean()), (5, 10), color='white', fontsize='medium')
+                axes[j+1].imshow(cur_loss, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
+                axes[j+1].set_title(f'{cur_method}')
+                axes[j+1].set_xlabel('x')
+                axes[j+1].set_ylabel('y')
+                axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss.mean()), (5, 10), color='white', fontsize='medium')
 
 
             # cax, kw = mpl.colorbar.make_axes([ax for ax in axes.flat])
             # plt.colorbar(im, cax=cax, **kw)
 
             # save the image
-            aee_dir = os.path.join(output_dir, f'{mode}_aee_plot')
+            aee_dir = os.path.join(output_dir, f'{mode}_{loss}_magnitude_plot')
             os.makedirs(aee_dir, exist_ok=True)
-            aee_path = os.path.join(aee_dir, f'{mode}_aee_{str(i).zfill(4)}.png')
+            aee_path = os.path.join(aee_dir, f'{mode}_{loss}_{str(i).zfill(4)}.png')
             plt.savefig(aee_path, bbox_inches='tight', dpi=my_dpi)
             fig.clf()
             plt.close(fig)
-            # print(f'\nAEE plot has been saved to {aee_path}')
 
 
         # energy plot
@@ -713,7 +753,14 @@ def main():
             plt.close(fig)
 
 
-        # determine if the blurred vorticity, where the blurring level
+
+
+        # determine if blurring true vorticity, where the blurring level is determined by particle counts,
+        # can improve the recovered vorticity accuracy
+        # if blur_vorticity:
+
+
+
 
     if plot_error_line_plot:
         fig, ax = plt.subplots()
