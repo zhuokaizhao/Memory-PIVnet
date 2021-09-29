@@ -1,13 +1,15 @@
 # the script serves to process and visualize the results from various methods
-
 import os
+import cv2
 import glob
 import h5py
 import argparse
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+from skimage import io
 import matplotlib as mpl
+from scipy import ndimage
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
@@ -32,16 +34,97 @@ def get_energy(velocity):
 # return all_vorticity_fields
 def compute_vorticity(cur_velocity_field, xx, yy):
     # all_velocity_fields has shape (height, width, 2)
-    # num_rows = cur_velocity_field.shape[0]
-    # num_cols = cur_velocity_field.shape[1]
-    # x, y = list(range(num_cols)), list(range(num_rows))
-    # xx, yy = np.meshgrid(x, y)
-
     # curl function takes (dim, num_rows, num_cols)
     udata = np.moveaxis(cur_velocity_field, [0, 1, 2], [1, 2, 0])
     cur_vorticity = vorticity.curl(udata, xx=xx, yy=yy)
 
     return np.array(cur_vorticity)
+
+
+# the function read all the original test images
+def read_images(image_dir):
+    # image format
+    image_type = None
+
+    for filename in os.listdir(image_dir):
+        if (os.path.isfile(os.path.join(image_dir, filename))
+            and not filename.endswith('.npy')):
+            # save image type if never been saved
+            if image_type == None:
+                image_type = filename.split('.')[1]
+            # images have to be one type
+            else:
+                if not image_type == filename.split('.')[1]:
+                    raise Exception('read_images: Images have to be one type')
+
+    # get all the image and velocity paths as a list
+    all_image_paths = glob.glob(os.path.join(image_dir, f'*.{image_type}'))
+
+    # rank these images, maps and labels based on name index
+    all_image_paths.sort(key = lambda x: x.split('/')[-1].split('_')[-1].split('.')[0])
+    num_images = len(all_image_paths)
+
+    print(f'{num_images} test images have been loaded')
+
+    # load all the images and labels
+    # load one image to know the image size
+    image_size = io.imread(all_image_paths[0], as_gray=True).shape
+    all_images = np.zeros((num_images, image_size[0], image_size[1]))
+    for i in range(num_images):
+        all_images[i] = io.imread(all_image_paths[i], as_gray=True)
+        # all_images[i] = cv2.imread(all_image_paths[i], cv2.IMREAD_GRAYSCALE)
+
+    return all_images
+
+
+# the function detects particles in a particle image
+def detect_particle_locations(particle_image, vis=False):
+
+    gray = cv2.GaussianBlur(particle_image, (5, 5), 0).astype('uint8')
+    max_value = 255
+    adaptive_method = cv2.ADAPTIVE_THRESH_GAUSSIAN_C#cv2.ADAPTIVE_THRESH_MEAN_C
+    threshold_type = cv2.THRESH_BINARY#cv2.THRESH_BINARY_INV
+    # odd number like 3, 5, 7, 9, 11
+    block_size = 5
+    # constant to be subtracted
+    c = -5
+    # threshold the image
+    im_thresholded = cv2.adaptiveThreshold(gray, max_value, adaptive_method, threshold_type, block_size, c)
+    # print(im_thresholded[:20, :20])
+    # exit()
+    # label the particles (consider symmetric shape)
+    label_array, particle_count = ndimage.measurements.label(im_thresholded)
+
+    all_particle_locations = np.array(ndimage.measurements.center_of_mass(im_thresholded, label_array, index=list(range(1, particle_count+1))))
+
+    # print(all_particle_locations.shape)
+    # exit()
+    # get all particle locations
+    # all_particle_locations = np.zeros((particle_count, 2))
+    # for i in range(1, particle_count+1):
+        # x_indices, y_indices = np.where(label_array==i)
+
+        # # use the centroid as the particle's location
+        # all_particle_locations[i-1, 0] = np.mean(x_indices, dtype=int)
+        # all_particle_locations[i-1, 1] = np.mean(y_indices, dtype=int)
+
+        # if i == particle_count:
+        #     print(x_indices)
+        #     print(all_particle_locations[i-1, 0])
+
+
+        # all_particle_locations[i-1, 0] = ndimage.measurements.center_of_mass(label_array, lbl, [i])
+        # all_particle_locations[i-1, 1] = ndimage.measurements.center_of_mass(label_array, lbl, [i])
+
+    # visualize the processed particle image
+    if vis:
+        fig, ax = plt.subplots()
+        ax.imshow(im_thresholded)
+        ax.plot(all_particle_locations[:, 0], all_particle_locations[:, 1], '.', color='black')
+        plt.show()
+
+    return all_particle_locations
+
 
 
 def main():
@@ -65,6 +148,19 @@ def main():
     output_dir = args.output_dir[0]
 
     # corresponding data path or directory
+    test_images_dir = '/home/zhuokai/Desktop/nvme1n1p1/Data/LMSI/Zhao_JHTDB/Isotropic_1024/Figs/test/z_662_762/50000/'
+    # load these test images
+    all_pixel_values_sums = []
+    all_test_images = read_images(test_images_dir)
+
+    for i in range(len(test_images_dir)):
+        cur_test_image = all_test_images[i]
+        cur_particle_locations = detect_particle_locations(cur_test_image, vis=True)
+
+        exit()
+
+
+
     if mode == 'velocity':
         ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vel_field/'
         # list of methods
@@ -93,7 +189,7 @@ def main():
     # start and end time (both inclusive)
     time_range = [start_t, end_t]
     # frame 81, 153, 154 have broken ground truth
-    non_vis_frames = [81, 153, 154]
+    non_vis_frames = [80, 81, 153, 154]
     img_size = 256
     my_dpi = 100
 
@@ -103,15 +199,21 @@ def main():
         if i in vis_frames:
             vis_frames.remove(i)
 
-    # load model testing output
     # different types of visualizations
     if mode == 'velocity':
+        # plot_image_quiver = False
+        # plot_color_encoded = True
+        # plot_aee_heatmap = True
+        # plot_energy = True
+        # plot_error_line_plot = True
+        # plot_result_pdf = True
+        # plot_error_pdf = False
         plot_image_quiver = False
-        plot_color_encoded = True
-        plot_aee_heatmap = True
-        plot_energy = True
+        plot_color_encoded = False
+        plot_aee_heatmap = False
+        plot_energy = False
         plot_error_line_plot = True
-        plot_result_pdf = True
+        plot_result_pdf = False
         plot_error_pdf = False
     elif mode == 'vorticity':
         plot_image_quiver = False
@@ -375,7 +477,7 @@ def main():
                     cmap_range = [0, 2]
                     cur_method_aee = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2 + (results_all_methods[cur_method][str(i)][:,:,1]-ground_truth[str(i)][:,:,1])**2)
                 elif mode == 'vorticity':
-                    cmap_range = [0, 1]
+                    cmap_range = [0, 0.1]
                     cur_method_aee = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2)
 
                 axes[j].imshow(cur_method_aee, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
@@ -476,6 +578,9 @@ def main():
                 elif loss == 'RMSE':
                     errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)))
 
+            cur_test_image = all_test_images[i]
+            pixel_values_sum = np.sum(cur_test_image)
+            all_pixel_values_sums.append(pixel_values_sum)
 
         # plot result pdf
         if plot_result_pdf:
@@ -583,11 +688,14 @@ def main():
         for j, cur_method in enumerate(methods):
             ax.plot(vis_frames, errors_all_methods[cur_method], label=f'{cur_method}')
 
+        # also plot the "quality" of the particle images
+        ax.plot(vis_frames, np.array(all_pixel_values_sums)/(2000.0), label=f'Pixel value count/2000')
+
         ax.set(xlabel='timestamp', ylabel=f'{loss}')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         plt.legend()
         vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses.png')
-        fig.savefig(vel_loss_curve_path, bbox_inches='tight', dpi=my_dpi)
+        fig.savefig(vel_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
         print(f'\n{mode} losses of all frames plot has been saved to {vel_loss_curve_path}')
 
 
