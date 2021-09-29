@@ -194,6 +194,8 @@ def main():
 
     # different types of visualizations
     if mode == 'velocity':
+        blur_ground_truth = True
+
         plot_particle_density = False
         plot_image_quiver = False
         plot_color_encoded = False
@@ -203,7 +205,7 @@ def main():
         plot_result_pdf = False
         plot_error_pdf = False
     elif mode == 'vorticity':
-        blur_vorticity = True
+        blur_ground_truth = True
 
         plot_particle_density = False
         plot_image_quiver = False
@@ -314,7 +316,7 @@ def main():
 
         # determine if blurring true vorticity, where the blurring level is determined by particle counts,
         # can improve the recovered vorticity accuracy
-        if blur_vorticity:
+        if blur_ground_truth:
             # load the image
             cur_test_image = all_test_images[i]
             # count the particles
@@ -322,10 +324,11 @@ def main():
             num_particles = len(cur_particle_locations)
             # square root the number of particles
             sqrt_num_particles = np.sqrt(num_particles)
-            # compute the ratio
-            ratio = 256 // sqrt_num_particles
-            # blur true vorticity by this ratio
+            # compute the kernel size of blurring
+            blur_kernel_size = 256 // sqrt_num_particles
 
+            # blur true vorticity by this ratio
+            ground_truth[str(i)] = cv2.GaussianBlur(ground_truth[str(i)], blur_kernel_size)
 
         # stand-alone particle density plot
         if plot_particle_density:
@@ -404,7 +407,11 @@ def main():
                     axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
 
             # save the image
-            test_quiver_dir = os.path.join(output_dir, 'test_quiver')
+            if blur_ground_truth:
+                test_quiver_dir = os.path.join(output_dir, f'{mode}_quiver_plot_truth_blurred_by_{blur_kernel_size}')
+            else:
+                test_quiver_dir = os.path.join(output_dir, f'{mode}_quiver_plot')
+
             os.makedirs(test_quiver_dir, exist_ok=True)
             test_quiver_path = os.path.join(test_quiver_dir, f'test_quiver_{str(i).zfill(4)}.png')
             plt.savefig(test_quiver_path, bbox_inches='tight', dpi=my_dpi)
@@ -497,7 +504,11 @@ def main():
                     axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
 
             # save the image
-            color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded')
+            if blur_ground_truth:
+                color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded_blurred_by_{blur_kernel_size}')
+            else:
+                color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded')
+
             os.makedirs(color_encoded_dir, exist_ok=True)
             color_encoded_path = os.path.join(color_encoded_dir, f'{mode}_color_encoded_{str(i).zfill(4)}.png')
             plt.savefig(color_encoded_path, bbox_inches='tight', dpi=my_dpi)
@@ -573,9 +584,13 @@ def main():
             # plt.colorbar(im, cax=cax, **kw)
 
             # save the image
-            aee_dir = os.path.join(output_dir, f'{mode}_{loss}_magnitude_plot')
-            os.makedirs(aee_dir, exist_ok=True)
-            aee_path = os.path.join(aee_dir, f'{mode}_{loss}_{str(i).zfill(4)}.png')
+            if blur_ground_truth:
+                loss_magnitude_dir = os.path.join(output_dir, f'{mode}_{loss}_magnitude_plot_blurred_by_{blur_kernel_size}')
+            else:
+                loss_magnitude_dir = os.path.join(output_dir, f'{mode}_{loss}_magnitude_plot')
+
+            os.makedirs(loss_magnitude_dir, exist_ok=True)
+            aee_path = os.path.join(loss_magnitude_dir, f'{mode}_{loss}_{str(i).zfill(4)}.png')
             plt.savefig(aee_path, bbox_inches='tight', dpi=my_dpi)
             fig.clf()
             plt.close(fig)
@@ -641,7 +656,11 @@ def main():
 
 
             # save the image
-            energy_dir = os.path.join(output_dir, 'energy_plot')
+            if blur_ground_truth:
+                energy_dir = os.path.join(output_dir, f'energy_plot_blurred_by_{blur_kernel_size}')
+            else:
+                energy_dir = os.path.join(output_dir, f'energy_plot')
+
             os.makedirs(energy_dir, exist_ok=True)
             energy_path = os.path.join(energy_dir, f'energy_{str(i).zfill(4)}.png')
             plt.savefig(energy_path, bbox_inches='tight', dpi=my_dpi)
@@ -697,7 +716,12 @@ def main():
             plt.xlabel(f'{mode}')
             plt.ylabel('Probability density')
             plt.yscale('log')
-            pdf_dir = os.path.join(output_dir, f'{mode}_probability_density')
+
+            if blur_ground_truth:
+                pdf_dir = os.path.join(output_dir, f'{mode}_probability_density_blurred_by_{blur_kernel_size}')
+            else:
+                pdf_dir = os.path.join(output_dir, f'{mode}_probability_density')
+
             os.makedirs(pdf_dir, exist_ok=True)
             pdf_path = os.path.join(pdf_dir, f'{mode}_pdf_{str(i).zfill(4)}.png')
             plt.savefig(pdf_path, bbox_inches='tight', dpi=my_dpi)
@@ -755,7 +779,11 @@ def main():
             plt.ylabel('Probability density')
             # plt.xscale('log')
             plt.yscale('log')
-            error_pdf_dir = os.path.join(output_dir, f'{mode}_error_probability_density')
+
+            if blur_ground_truth:
+                error_pdf_dir = os.path.join(output_dir, f'{mode}_error_probability_density_blurred_by_{blur_kernel_size}')
+            else:
+                error_pdf_dir = os.path.join(output_dir, f'{mode}_error_probability_density')
             os.makedirs(error_pdf_dir, exist_ok=True)
             error_pdf_path = os.path.join(error_pdf_dir, f'{mode}_error_pdf_{str(i).zfill(4)}.png')
             plt.savefig(error_pdf_path, bbox_inches='tight', dpi=my_dpi)
@@ -777,7 +805,10 @@ def main():
         ax.set(xlabel='timestamp', ylabel=f'{loss}')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         plt.legend()
-        vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses.png')
+        if blur_ground_truth:
+            vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses_blurred_by_{blur_kernel_size}.png')
+        else:
+            vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses.png')
         fig.savefig(vel_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
         print(f'\n{mode} losses of all frames plot has been saved to {vel_loss_curve_path}')
 
