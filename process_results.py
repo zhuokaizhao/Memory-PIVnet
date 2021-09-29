@@ -90,37 +90,19 @@ def detect_particle_locations(particle_image, vis=False):
     c = -5
     # threshold the image
     im_thresholded = cv2.adaptiveThreshold(gray, max_value, adaptive_method, threshold_type, block_size, c)
-    # print(im_thresholded[:20, :20])
-    # exit()
+    # im_thresholded_partial = im_thresholded[10:20, 10:20]
+
     # label the particles (consider symmetric shape)
     label_array, particle_count = ndimage.measurements.label(im_thresholded)
 
-    all_particle_locations = np.array(ndimage.measurements.center_of_mass(im_thresholded, label_array, index=list(range(1, particle_count+1))))
-
-    # print(all_particle_locations.shape)
-    # exit()
     # get all particle locations
-    # all_particle_locations = np.zeros((particle_count, 2))
-    # for i in range(1, particle_count+1):
-        # x_indices, y_indices = np.where(label_array==i)
-
-        # # use the centroid as the particle's location
-        # all_particle_locations[i-1, 0] = np.mean(x_indices, dtype=int)
-        # all_particle_locations[i-1, 1] = np.mean(y_indices, dtype=int)
-
-        # if i == particle_count:
-        #     print(x_indices)
-        #     print(all_particle_locations[i-1, 0])
-
-
-        # all_particle_locations[i-1, 0] = ndimage.measurements.center_of_mass(label_array, lbl, [i])
-        # all_particle_locations[i-1, 1] = ndimage.measurements.center_of_mass(label_array, lbl, [i])
+    all_particle_locations = np.array(ndimage.measurements.center_of_mass(im_thresholded, label_array, index=list(range(1, particle_count+1))))
 
     # visualize the processed particle image
     if vis:
         fig, ax = plt.subplots()
         ax.imshow(im_thresholded)
-        ax.plot(all_particle_locations[:, 0], all_particle_locations[:, 1], '.', color='black')
+        ax.plot(all_particle_locations[:, 1], all_particle_locations[:, 0], '.', color='green')
         plt.show()
 
     return all_particle_locations
@@ -155,9 +137,8 @@ def main():
 
     for i in range(len(test_images_dir)):
         cur_test_image = all_test_images[i]
-        cur_particle_locations = detect_particle_locations(cur_test_image, vis=True)
+        cur_particle_locations = detect_particle_locations(cur_test_image, vis=False)
 
-        exit()
 
 
 
