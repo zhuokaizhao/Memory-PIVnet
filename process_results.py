@@ -11,6 +11,7 @@ from skimage import io
 import matplotlib as mpl
 from scipy import ndimage
 import matplotlib.pyplot as plt
+from scipy.stats.kde import gaussian_kde
 from matplotlib.ticker import MaxNLocator
 
 import plot
@@ -128,18 +129,13 @@ def main():
     end_t = int(args.end_t[0])
     loss = args.loss[0]
     output_dir = args.output_dir[0]
+    my_dpi = 100
 
     # corresponding data path or directory
     test_images_dir = '/home/zhuokai/Desktop/nvme1n1p1/Data/LMSI/Zhao_JHTDB/Isotropic_1024/Figs/test/z_662_762/50000/'
     # load these test images
     all_pixel_values_sums = []
     all_test_images = read_images(test_images_dir)
-
-    for i in range(len(test_images_dir)):
-        cur_test_image = all_test_images[i]
-        cur_particle_locations = detect_particle_locations(cur_test_image, vis=False)
-
-
 
 
     if mode == 'velocity':
@@ -172,7 +168,6 @@ def main():
     # frame 81, 153, 154 have broken ground truth
     non_vis_frames = [80, 81, 153, 154]
     img_size = 256
-    my_dpi = 100
 
     # frames that we are visualizing
     vis_frames = list(range(time_range[0], time_range[1]+1))
@@ -189,6 +184,7 @@ def main():
         # plot_error_line_plot = True
         # plot_result_pdf = True
         # plot_error_pdf = False
+        plot_particle_density = True
         plot_image_quiver = False
         plot_color_encoded = False
         plot_aee_heatmap = False
@@ -197,6 +193,7 @@ def main():
         plot_result_pdf = False
         plot_error_pdf = False
     elif mode == 'vorticity':
+        plot_particle_density = True
         plot_image_quiver = False
         plot_color_encoded = True
         plot_aee_heatmap = True
@@ -298,8 +295,44 @@ def main():
         max_truth = 1
         min_truth = -1
 
+
     # visualizing the results
     for i in tqdm(vis_frames):
+
+
+        # stand-alone particle density plot
+        if plot_particle_density:
+
+            # load the image
+            cur_test_image = all_test_images[i]
+            cur_particle_locations = detect_particle_locations(cur_test_image, vis=False)
+            x = cur_particle_locations[:, 1]
+            y = cur_particle_locations[:, 0]
+
+            # kernel-density estimate using Gaussian kernels
+            k = gaussian_kde(np.vstack([x, y]))
+            # kernel size
+            kernel_size = 4
+            xi, yi = np.mgrid[x.min():x.max():kernel_size, y.min():y.max():kernel_size]
+            zi = k(np.vstack([xi.flatten(), yi.flatten()]))
+
+            # from the list of particle positions, plot density heatmap
+            fig, ax = plt.subplots()
+
+            # alpha=0.5 will make the plots semitransparent
+            ax.pcolormesh(xi, yi, zi.reshape(xi.shape), alpha=0.5, shading='auto')
+
+            # overlay test image
+            ax.imshow(cur_test_image, cmap='gray', aspect='auto', origin='lower')
+            ax.invert_yaxis()
+            ax.set_aspect('equal', 'box')
+
+            # save figure
+            particle_density_dir = os.path.join(output_dir, 'particle_density')
+            os.makedirs(particle_density_dir, exist_ok=True)
+            particle_density_path = os.path.join(particle_density_dir, f'particle_density_{str(i).zfill(4)}.png')
+            fig.savefig(particle_density_path, bbox_inches='tight', dpi=my_dpi)
+
 
         # test image superimposed quiver plot
         if plot_image_quiver:
