@@ -101,10 +101,27 @@ def detect_particle_locations(particle_image, vis=False):
 
     # visualize the processed particle image
     if vis:
-        fig, ax = plt.subplots()
-        ax.imshow(im_thresholded)
-        ax.plot(all_particle_locations[:, 1], all_particle_locations[:, 0], '.', color='green')
-        plt.show()
+        fig, axes = plt.subplots(ncols=3, figsize=(24, 8))
+        axes[0].imshow(particle_image, cmap='gray', aspect='auto', origin='lower')
+        axes[0].invert_yaxis()
+        axes[0].set_aspect('equal', 'box')
+        axes[0].set_title('Original image')
+
+        axes[1].imshow(im_thresholded)
+        axes[1].plot(all_particle_locations[:, 1], all_particle_locations[:, 0], '.', color='blue', markersize=5, alpha=0.5)
+        axes[1].set_aspect('equal', 'box')
+        axes[1].set_title('Detected particles')
+
+        axes[2].imshow(particle_image, cmap='gray', aspect='auto', origin='lower')
+        axes[2].plot(all_particle_locations[:, 1], all_particle_locations[:, 0], '.', color='red', markersize=5, alpha=0.5)
+        axes[2].invert_yaxis()
+        axes[2].set_aspect('equal', 'box')
+        axes[2].set_title('Overlay detected particles with original image')
+        # plt.show()
+        particle_count_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/figs/Isotropic_1024/velocity/50000_seeds/time_span_5/particle_count.png'
+        fig.savefig(particle_count_path, bbox_inches='tight', dpi=100)
+
+        exit()
 
     return all_particle_locations
 
@@ -305,7 +322,7 @@ def main():
 
             # load the image
             cur_test_image = all_test_images[i]
-            cur_particle_locations = detect_particle_locations(cur_test_image, vis=False)
+            cur_particle_locations = detect_particle_locations(cur_test_image, vis=True)
             x = cur_particle_locations[:, 1]
             y = cur_particle_locations[:, 0]
 
@@ -596,6 +613,7 @@ def main():
             pixel_values_sum = np.sum(cur_test_image)
             all_pixel_values_sums.append(pixel_values_sum)
 
+
         # plot result pdf
         if plot_result_pdf:
 
@@ -694,6 +712,8 @@ def main():
             fig.clf()
             plt.close(fig)
 
+
+        # determine if the blurred vorticity, where the blurring level
 
     if plot_error_line_plot:
         fig, ax = plt.subplots()
