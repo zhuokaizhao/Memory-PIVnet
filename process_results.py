@@ -198,11 +198,11 @@ def main():
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = True
-        plot_loss_magnitude_heatmap = True
-        plot_energy = True
+        plot_color_encoded = False
+        plot_loss_magnitude_heatmap = False
+        plot_energy = False
         plot_error_line_plot = True
-        plot_result_pdf = True
+        plot_result_pdf = False
         plot_error_pdf = False
     elif mode == 'vorticity':
         blur_ground_truth = False
@@ -222,6 +222,7 @@ def main():
     results_all_methods = {}
     if plot_error_line_plot:
         errors_all_methods = {}
+        energy_errors_all_methods = {}
 
     # load ground truth
     for t in range(time_range[0], time_range[1]+1):
@@ -242,6 +243,7 @@ def main():
         results_all_methods[cur_method] = {}
         if plot_error_line_plot:
             errors_all_methods[cur_method] = []
+            energy_errors_all_methods[cur_method] = []
 
         if cur_method == 'memory-piv-net':
             # load the velocity fields of the specified time range
@@ -596,6 +598,14 @@ def main():
             plt.close(fig)
 
 
+        # energy computation from velocity fields
+        # compute energy for ground truth
+        ground_truth_energy = get_energy(ground_truth[str(i)])
+        # compute energy for each method
+        cur_energy_all_methods = {}
+        for j, cur_method in enumerate(methods):
+            cur_energy_all_methods[cur_method] = get_energy(results_all_methods[cur_method][str(i)])
+
         # energy plot
         if plot_energy:
 
@@ -604,8 +614,7 @@ def main():
             plt.suptitle(f'Energy plot at t = {i}')
             skip = 7
 
-            # compute energy for ground truth
-            ground_truth_energy = get_energy(ground_truth[str(i)])
+
             energy_cmap_range = [np.min(ground_truth_energy), np.max(ground_truth_energy)]
 
             # superimpose quiver plot on color-coded images
@@ -628,7 +637,7 @@ def main():
 
             # plot each prediction method
             for j, cur_method in enumerate(methods):
-                cur_energy = get_energy(results_all_methods[cur_method][str(i)])
+                cur_energy = cur_energy_all_methods[cur_method]
                 axes[j+1].imshow(cur_energy, vmin=energy_cmap_range[0], vmax=energy_cmap_range[1], cmap=plt.get_cmap('viridis'))
                 Q = axes[j+1].quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
@@ -673,10 +682,13 @@ def main():
             for j, cur_method in enumerate(methods):
                 if loss == 'MAE':
                     errors_all_methods[cur_method].append(np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
+                    energy_errors_all_methods[cur_method].append(np.abs(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None))
                 elif loss == 'MSE':
                     errors_all_methods[cur_method].append(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
+                    energy_errors_all_methods[cur_method].append(np.square(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None))
                 elif loss == 'RMSE':
                     errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)))
+                    energy_errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None)))
 
             cur_test_image = all_test_images[i]
             pixel_values_sum = np.sum(cur_test_image)
@@ -798,17 +810,17 @@ def main():
 
 
     if plot_error_line_plot:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10, 3))
         plt.suptitle(f'{mode} {loss} for each frame')
 
         for j, cur_method in enumerate(methods):
             ax.plot(vis_frames, errors_all_methods[cur_method], label=f'{cur_method}')
             # print average result
-            cur_avg_loss = np.mean(errors_all_methods[cur_method])
-            print(f'{cur_method} {loss} = {cur_avg_loss}')
+            cur_avg_loss = np.nanmean(errors_all_methods[cur_method])
+            print(f'{cur_method} {mode} {loss} = {cur_avg_loss}')
 
         # also plot the "quality" of the particle images
-        ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
+        # ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
 
         ax.set(xlabel='timestamp', ylabel=f'{loss}')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -818,7 +830,31 @@ def main():
         else:
             vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses_dpi{my_dpi}.png')
         fig.savefig(vel_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
-        print(f'\n{mode} losses of all frames plot has been saved to {vel_loss_curve_path}')
+        print(f'\n{mode} {loss} of all frames plot has been saved to {vel_loss_curve_path}\n')
+
+
+        # energy error plot
+        fig, ax = plt.subplots(figsize=(10, 3))
+        plt.suptitle(f'Energy {loss} for each frame')
+
+        for j, cur_method in enumerate(methods):
+            ax.plot(vis_frames, energy_errors_all_methods[cur_method], label=f'{cur_method}')
+            # print average result
+            cur_avg_loss = np.nanmean(energy_errors_all_methods[cur_method])
+            print(f'{cur_method} energy {loss} = {cur_avg_loss}')
+
+        # also plot the "quality" of the particle images
+        # ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
+
+        ax.set(xlabel='timestamp', ylabel=f'{loss}')
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        plt.legend()
+        if blur_ground_truth:
+            energy_loss_curve_path = os.path.join(output_dir, f'all_frames_energy_{mode}_losses_blurred_dpi{my_dpi}.png')
+        else:
+            energy_loss_curve_path = os.path.join(output_dir, f'all_frames_energy_{mode}_losses_dpi{my_dpi}.png')
+        fig.savefig(energy_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
+        print(f'\nEnergy {loss} of all frames plot has been saved to {energy_loss_curve_path}\n')
 
 
 
