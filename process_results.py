@@ -146,7 +146,7 @@ def main():
     end_t = int(args.end_t[0])
     loss = args.loss[0]
     output_dir = args.output_dir[0]
-    my_dpi = 50
+    my_dpi = 100
 
     # corresponding data path or directory
     test_images_dir = '/home/zhuokai/Desktop/nvme1n1p1/Data/LMSI/Zhao_JHTDB/Isotropic_1024/Figs/test/z_662_762/50000/'
@@ -199,10 +199,10 @@ def main():
         plot_particle_density = False
         plot_image_quiver = False
         plot_color_encoded = True
-        plot_loss_magnitude_heatmap = False
-        plot_energy = False
-        plot_error_line_plot = False
-        plot_result_pdf = False
+        plot_loss_magnitude_heatmap = True
+        plot_energy = True
+        plot_error_line_plot = True
+        plot_result_pdf = True
         plot_error_pdf = False
     elif mode == 'vorticity':
         blur_ground_truth = False
@@ -803,6 +803,9 @@ def main():
 
         for j, cur_method in enumerate(methods):
             ax.plot(vis_frames, errors_all_methods[cur_method], label=f'{cur_method}')
+            # print average result
+            cur_avg_loss = np.mean(errors_all_methods[cur_method])
+            print(f'{cur_method} {loss} = {cur_avg_loss}')
 
         # also plot the "quality" of the particle images
         ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
@@ -816,6 +819,8 @@ def main():
             vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses_dpi{my_dpi}.png')
         fig.savefig(vel_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
         print(f'\n{mode} losses of all frames plot has been saved to {vel_loss_curve_path}')
+
+
 
 
 if __name__ == "__main__":
