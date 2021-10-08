@@ -615,7 +615,7 @@ def main():
             skip = 7
 
 
-            energy_cmap_range = [np.min(ground_truth_energy), np.max(ground_truth_energy)]
+            energy_cmap_range = [0, 5]
 
             # superimpose quiver plot on color-coded images
             x = np.linspace(0, img_size-1, img_size)
