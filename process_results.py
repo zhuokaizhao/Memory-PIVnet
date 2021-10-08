@@ -158,20 +158,20 @@ def main():
     if mode == 'velocity':
         ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vel_field/'
         # list of methods
-        methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'cross_correlation']
+        methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
         result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
-                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/cross_correlation/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
+                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
     # when vorticity, still velocity results is loaded except ground truth and memory-piv-net
     elif mode == 'vorticity':
         ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vor_field/'
         # list of methods
-        methods = ['memory-piv-net', 'memory-piv-net-velocity', 'pyramid', 'cross_correlation']
+        methods = ['memory-piv-net', 'memory-piv-net-velocity', 'pyramid', 'widim']
         result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vor_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
-                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/cross_correlation/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
+                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
     else:
         raise Exception(f'Unknown mode {mode}')
 
@@ -200,7 +200,7 @@ def main():
         plot_image_quiver = False
         plot_color_encoded = False
         plot_loss_magnitude_heatmap = False
-        plot_energy = False
+        plot_energy = True
         plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = False
@@ -268,7 +268,7 @@ def main():
                 results_all_methods[cur_method][str(t)] = np.load(cur_path)[f'{mode}']
 
         # for pyramid and standar methods
-        elif cur_method == 'pyramid' or cur_method == 'cross_correlation':
+        elif cur_method == 'pyramid' or cur_method == 'widim':
             cur_path = result_dirs[i]
             with h5py.File(cur_path, mode='r') as f:
                 # print('The h5 file contains ', list(f.keys()))
@@ -299,7 +299,7 @@ def main():
     #          memory_piv_net=results_all_methods['memory-piv-net']['0'],
     #          memory_piv_net_velocity=results_all_methods['memory-piv-net-velocity']['0'],
     #          pyramid=results_all_methods['pyramid']['0'],
-    #          cross_correlation=results_all_methods['cross_correlation']['0'])
+    #          widim=results_all_methods['widim']['0'])
     # print(results_all_methods['memory-piv-net']['0'].mean())
     # print(results_all_methods['memory-piv-net-velocity']['0'].mean())
     # exit()
@@ -638,7 +638,7 @@ def main():
             # plot each prediction method
             for j, cur_method in enumerate(methods):
                 cur_energy = cur_energy_all_methods[cur_method]
-                axes[j+1].imshow(cur_energy, vmin=energy_cmap_range[0], vmax=energy_cmap_range[1], cmap=plt.get_cmap('viridis'))
+                im = axes[j+1].imshow(cur_energy, vmin=energy_cmap_range[0], vmax=energy_cmap_range[1], cmap=plt.get_cmap('viridis'))
                 Q = axes[j+1].quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
                                     results_all_methods[cur_method][str(i)][::skip, ::skip, 0]/max_truth,
@@ -663,6 +663,11 @@ def main():
                 # add annotation
                 axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='white', fontsize='medium')
 
+            # add color bar at the last subplot
+            # add space for colour bar
+            fig.subplots_adjust(right=0.85)
+            cbar_ax = fig.add_axes([0.87, 0.15, 0.01, 0.7])
+            fig.colorbar(im, cax=cbar_ax)
 
             # save the image
             if blur_ground_truth:
