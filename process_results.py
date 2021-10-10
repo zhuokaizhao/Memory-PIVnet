@@ -132,6 +132,8 @@ def main():
     parser = argparse.ArgumentParser()
     # mode (velocity or vorticity)
     parser.add_argument('--mode', required=True, action='store', nargs=1, dest='mode')
+    # data name (isotropic_1024 or rotationsl)
+    parser.add_argument('--data', required=True, action='store', nargs=1, dest='data')
     # start and end t used when testing (both inclusive)
     parser.add_argument('--start-t', action='store', nargs=1, dest='start_t')
     parser.add_argument('--end-t', action='store', nargs=1, dest='end_t')
@@ -142,6 +144,7 @@ def main():
 
     args = parser.parse_args()
     mode = args.mode[0]
+    data = args.data[0]
     start_t = int(args.start_t[0])
     end_t = int(args.end_t[0])
     loss = args.loss[0]
@@ -156,13 +159,23 @@ def main():
 
 
     if mode == 'velocity':
-        ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vel_field/'
-        # list of methods
-        methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
-        result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
-                        '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
-                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
-                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
+        if data == 'isotropic_1024':
+            ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vel_field/'
+            methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
+            result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
+        elif data == 'rotational':
+            ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/amnesia_memory/4000_seeds/no_pe/time_span_5/true_vel_field/'
+            methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
+            result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/amnesia_memory/4000_seeds/no_pe/time_span_5/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Rotational/4000_seeds/lfn_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/pyramid/TR_Pyramid(1,3)_MPd(1x16x16_50ov).h5',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/widim/TR_PIV_MPd(1x16x16_50ov).h5']
+        else:
+            raise(Exception(f'Unknown dataset {data}'))
+
     # when vorticity, still velocity results is loaded except ground truth and memory-piv-net
     elif mode == 'vorticity':
         ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vor_field/'
@@ -198,8 +211,8 @@ def main():
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = False
-        plot_loss_magnitude_heatmap = False
+        plot_color_encoded = True
+        plot_loss_magnitude_heatmap = True
         plot_energy = True
         plot_error_line_plot = True
         plot_result_pdf = False
@@ -524,30 +537,33 @@ def main():
 
             # plot includes number of methods - 1 (no ground truth) subplots
             fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1, figsize=(5*len(methods), 5))
-            plt.suptitle(f'{mode} average endpoint error at t = {i}')
+            plt.suptitle(f'{mode} |{loss}| at t = {i}')
 
             # first subplot is the particle density
             # load the image
             cur_test_image = all_test_images[i]
-            cur_particle_locations = detect_particle_locations(cur_test_image, vis=False)
-            x = cur_particle_locations[:, 1]
-            y = cur_particle_locations[:, 0]
+            if plot_particle_density:
+                cur_particle_locations = detect_particle_locations(cur_test_image, vis=False)
+                x = cur_particle_locations[:, 1]
+                y = cur_particle_locations[:, 0]
 
-            # kernel-density estimate using Gaussian kernels
-            k = gaussian_kde(np.vstack([x, y]))
-            # kernel size
-            kernel_size = 4
-            xi, yi = np.mgrid[x.min():x.max():kernel_size, y.min():y.max():kernel_size]
-            zi = k(np.vstack([xi.flatten(), yi.flatten()]))
+                # kernel-density estimate using Gaussian kernels
+                k = gaussian_kde(np.vstack([x, y]))
+                # kernel size
+                kernel_size = 4
+                xi, yi = np.mgrid[x.min():x.max():kernel_size, y.min():y.max():kernel_size]
+                zi = k(np.vstack([xi.flatten(), yi.flatten()]))
 
-            # alpha=0.5 will make the plots semitransparent
-            axes[0].pcolormesh(xi, yi, zi.reshape(xi.shape), alpha=0.5, shading='auto')
+                # alpha=0.5 will make the plots semitransparent
+                axes[0].pcolormesh(xi, yi, zi.reshape(xi.shape), alpha=0.5, shading='auto')
+                axes[0].set_title('Particle density plot')
+            else:
+                axes[0].set_title('Particle image')
 
             # overlay test image
             axes[0].imshow(cur_test_image, cmap='gray', aspect='auto', origin='lower')
             axes[0].invert_yaxis()
             axes[0].set_aspect('equal', 'box')
-            axes[0].set_title('Particle density plot')
 
             # loss magnitude plots for each method
             for j, cur_method in enumerate(methods):
@@ -575,15 +591,18 @@ def main():
                     elif loss == 'AEE':
                         cur_loss = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2)
 
-                axes[j+1].imshow(cur_loss, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
+                im = axes[j+1].imshow(cur_loss, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
                 axes[j+1].set_title(f'{cur_method}')
                 axes[j+1].set_xlabel('x')
                 axes[j+1].set_ylabel('y')
                 axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss.mean()), (5, 10), color='white', fontsize='medium')
 
 
-            # cax, kw = mpl.colorbar.make_axes([ax for ax in axes.flat])
-            # plt.colorbar(im, cax=cax, **kw)
+            # add color bar at the last subplot
+            # add space for colour bar
+            fig.subplots_adjust(right=0.85)
+            cbar_ax = fig.add_axes([0.87, 0.2, 0.01, 0.6])
+            fig.colorbar(im, cax=cbar_ax)
 
             # save the image
             if blur_ground_truth:
