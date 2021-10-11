@@ -162,6 +162,8 @@ def main():
         if data == 'isotropic_1024':
             ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vel_field/'
             methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
+            # methods = []
+            # result_dirs = []
             result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
                             '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
                             '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
@@ -211,12 +213,13 @@ def main():
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = True
-        plot_loss_magnitude_heatmap = True
-        plot_energy = True
-        plot_error_line_plot = True
+        plot_color_encoded = False
+        plot_loss_magnitude_heatmap = False
+        plot_energy = False
+        plot_error_line_plot = False
         plot_result_pdf = False
         plot_error_pdf = False
+        plot_scatter = True
     elif mode == 'vorticity':
         blur_ground_truth = False
 
@@ -228,7 +231,7 @@ def main():
         plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = False
-
+        plot_scatter = True
 
     # loaded velocity fields
     ground_truth = {}
@@ -236,6 +239,9 @@ def main():
     if plot_error_line_plot:
         errors_all_methods = {}
         energy_errors_all_methods = {}
+
+    if plot_scatter:
+        all_truth_error_pairs = []
 
     # load ground truth
     for t in range(time_range[0], time_range[1]+1):
@@ -391,14 +397,30 @@ def main():
             plt.suptitle(f'Particle image quiver plot at t = {i}')
             skip = 7
 
+            # draw the ground truth quiver
+            x = np.linspace(0, img_size-1, img_size)
+            y = np.linspace(0, img_size-1, img_size)
+            y_pos, x_pos = np.meshgrid(x, y)
+            axes[0].imshow(test_image, 'gray')
+            Q = axes[0].quiver(y_pos[::skip, ::skip],
+                                x_pos[::skip, ::skip],
+                                ground_truth[str(i)][::skip, ::skip, 0]/max_truth,
+                                -ground_truth[str(i)][::skip, ::skip, 1]/max_truth,
+                                # scale=4.0,
+                                scale_units='inches',
+                                color='green')
+            Q._init()
+            assert isinstance(Q.scale, float)
+            axes[0].set_title(f'Ground truth')
+            axes[0].set_xlabel('x')
+            axes[0].set_ylabel('y')
+
+
             # superimpose quiver plot on color-coded images
             for j, cur_method in enumerate(methods):
-                # current method
-                x = np.linspace(0, img_size-1, img_size)
-                y = np.linspace(0, img_size-1, img_size)
-                y_pos, x_pos = np.meshgrid(x, y)
-                axes[0].imshow(test_image, 'gray')
-                Q = axes[j].quiver(y_pos[::skip, ::skip],
+                # all methods use the same test image
+                axes[j+1].imshow(test_image, 'gray')
+                Q = axes[j+1].quiver(y_pos[::skip, ::skip],
                                     x_pos[::skip, ::skip],
                                     results_all_methods[cur_method][str(i)][::skip, ::skip, 0]/max_truth,
                                     -results_all_methods[cur_method][str(i)][::skip, ::skip, 1]/max_truth,
@@ -407,19 +429,18 @@ def main():
                                     color='green')
                 Q._init()
                 assert isinstance(Q.scale, float)
-                axes[j].set_title(f'{cur_method}')
-                axes[j].set_xlabel('x')
-                axes[j].set_ylabel('y')
+                axes[j+1].set_title(f'{cur_method}')
+                axes[j+1].set_xlabel('x')
+                axes[j+1].set_ylabel('y')
 
-                # label error when not ground truth
-                if cur_method != 'ground_truth':
-                    if loss == 'MAE':
-                        cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
-                    elif loss == 'MSE':
-                        cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
-                    elif loss == 'RMSE':
-                        cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
-                    axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
+                # label error
+                if loss == 'MAE':
+                    cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
+                elif loss == 'MSE':
+                    cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
+                elif loss == 'RMSE':
+                    cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
+                axes[j].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
 
             # save the image
             if blur_ground_truth:
@@ -831,6 +852,64 @@ def main():
             fig.clf()
             plt.close(fig)
 
+
+        # scatter plot of error/ground truth, shows correlation between flow and error
+        if plot_scatter:
+            import seaborn as sns
+            import pandas as pd
+            import matplotlib.gridspec as gridspec
+
+            # x-axis is ground truth, y axis is error
+            # plot includes four subplots
+            # fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
+            fig = plt.figure(figsize=(5*len(methods), 5))
+            gs = gridspec.GridSpec(2, len(methods))
+
+            # plot each prediction method
+            for j, cur_method in enumerate(methods):
+
+                # compute error
+                errors = results_all_methods[cur_method][str(i)] - ground_truth[str(i)]
+                x_errors = list(errors[:, :, 0].flatten())
+                x_truths = list(ground_truth[str(i)][:, :, 0].flatten())
+                y_errors = list(errors[:, :, 1].flatten())
+                y_truths = list(ground_truth[str(i)][:, :, 1].flatten())
+
+                # put in pandas dataframe
+                x_df = pd.DataFrame({
+                    'v_x': x_errors,
+                    'delta_v_x': x_truths
+                })
+                x_df.head(n=2)
+
+                y_df = pd.DataFrame({
+                    'v_y': y_errors,
+                    'delta_v_y': y_truths
+                })
+                y_df.head(n=2)
+
+                # scatter plots for x and y
+                joint_x = sns.jointplot(x='v_x', y='delta_v_x', data=x_df, kind='reg', joint_kws = {'scatter_kws':dict(alpha=0.1, s=2)})
+                joint_y = sns.jointplot(x='v_y', y='delta_v_y', data=y_df, kind='reg', joint_kws = {'scatter_kws':dict(alpha=0.1, s=2)})
+
+                mg0 = plot.SeabornFig2Grid(joint_x, fig, gs[0, j])
+                joint_x.ax_marg_x.set_title(f'{methods[j]}')
+                mg1 = plot.SeabornFig2Grid(joint_y, fig, gs[1, j])
+
+            gs.tight_layout(fig)
+            plt.show()
+
+            # save the image
+            if blur_ground_truth:
+                scatter_dir = os.path.join(output_dir, f'error_scatter_plot_blurred_dpi{my_dpi}')
+            else:
+                scatter_dir = os.path.join(output_dir, f'error_scatter_plot_dpi{my_dpi}')
+
+            os.makedirs(scatter_dir, exist_ok=True)
+            scatter_path = os.path.join(scatter_dir, f'error_scatter_{str(i).zfill(4)}.png')
+            plt.savefig(scatter_path, bbox_inches='tight', dpi=my_dpi)
+            fig.clf()
+            plt.close(fig)
 
 
     if plot_error_line_plot:
