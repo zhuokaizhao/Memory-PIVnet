@@ -162,8 +162,6 @@ def main():
         if data == 'isotropic_1024':
             ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vel_field/'
             methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
-            # methods = []
-            # result_dirs = []
             result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
                             '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
                             '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
@@ -216,10 +214,10 @@ def main():
         plot_color_encoded = False
         plot_loss_magnitude_heatmap = False
         plot_energy = False
-        plot_error_line_plot = False
+        plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = False
-        plot_scatter = True
+        plot_scatter = False
     elif mode == 'vorticity':
         blur_ground_truth = False
 
@@ -244,9 +242,24 @@ def main():
         all_truth_error_pairs = []
 
     # load ground truth
+    # for sanity check
+    all_x = []
+    all_y = []
+    all_x_rms = []
+    all_y_rms = []
     for t in range(time_range[0], time_range[1]+1):
         cur_path = os.path.join(ground_truth_path, f'true_{mode}_{t}.npz')
         ground_truth[str(t)] = np.load(cur_path)[f'{mode}']
+
+        all_x.append(np.mean(np.abs(ground_truth[str(t)][:, :, 0])))
+        all_y.append(np.mean(np.abs(ground_truth[str(t)][:, :, 1])))
+        all_x_rms.append(np.sqrt(np.sum(ground_truth[str(t)][:, :, 0]**2) / (256 * 256)))
+        all_y_rms.append(np.sqrt(np.sum(ground_truth[str(t)][:, :, 1]**2) / (256 * 256)))
+
+    print(f'Average velocity in x is {np.mean(all_x)} pixels/frame')
+    print(f'Average velocity in y is {np.mean(all_y)} pixels/frame')
+    print(f'Average RMS velocity in x is {np.mean(all_x_rms)} pixels/frame')
+    print(f'Average RMS velocity in y is {np.mean(all_y_rms)} pixels/frame')
 
     # when computing vorticity, xx and yy grids are required
     if mode == 'vorticity':
@@ -460,7 +473,7 @@ def main():
         if plot_color_encoded:
             # plot ground truth and all the prediction results
             fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1, figsize=(5*(len(methods)+1), 5))
-            plt.suptitle(f'Color-encoded {mode} quiver plot at t = {i}')
+            # plt.suptitle(f'Color-encoded {mode} quiver plot at t = {i}')
             skip = 7
 
             # visualize ground truth
@@ -483,7 +496,7 @@ def main():
                                     scale_units='inches')
                 Q._init()
                 assert isinstance(Q.scale, float)
-                axes[0].set_title(f'Ground truth')
+                # axes[0].set_title(f'Ground truth')
                 axes[0].set_xlabel('x')
                 axes[0].set_ylabel('y')
 
@@ -515,7 +528,7 @@ def main():
                                         scale_units='inches')
                     Q._init()
                     assert isinstance(Q.scale, float)
-                    axes[j+1].set_title(f'{cur_method}')
+                    # axes[j+1].set_title(f'{cur_method}')
                     axes[j+1].set_xlabel('x')
                     axes[j+1].set_ylabel('y')
 
@@ -558,7 +571,7 @@ def main():
 
             # plot includes number of methods - 1 (no ground truth) subplots
             fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1, figsize=(5*len(methods), 5))
-            plt.suptitle(f'{mode} |{loss}| at t = {i}')
+            # plt.suptitle(f'{mode} |{loss}| at t = {i}')
 
             # first subplot is the particle density
             # load the image
@@ -578,8 +591,8 @@ def main():
                 # alpha=0.5 will make the plots semitransparent
                 axes[0].pcolormesh(xi, yi, zi.reshape(xi.shape), alpha=0.5, shading='auto')
                 axes[0].set_title('Particle density plot')
-            else:
-                axes[0].set_title('Particle image')
+            # else:
+                # axes[0].set_title('Particle image')
 
             # overlay test image
             axes[0].imshow(cur_test_image, cmap='gray', aspect='auto', origin='lower')
@@ -613,7 +626,7 @@ def main():
                         cur_loss = np.sqrt((results_all_methods[cur_method][str(i)][:,:,0]-ground_truth[str(i)][:,:,0])**2)
 
                 im = axes[j+1].imshow(cur_loss, vmin=cmap_range[0], vmax=cmap_range[1], cmap=plt.get_cmap('viridis'))
-                axes[j+1].set_title(f'{cur_method}')
+                # axes[j+1].set_title(f'{cur_method}')
                 axes[j+1].set_xlabel('x')
                 axes[j+1].set_ylabel('y')
                 axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss.mean()), (5, 10), color='white', fontsize='medium')
@@ -622,7 +635,7 @@ def main():
             # add color bar at the last subplot
             # add space for colour bar
             fig.subplots_adjust(right=0.85)
-            cbar_ax = fig.add_axes([0.87, 0.2, 0.01, 0.6])
+            cbar_ax = fig.add_axes([0.87, 0.245, 0.01, 0.501])
             fig.colorbar(im, cax=cbar_ax)
 
             # save the image
@@ -862,7 +875,7 @@ def main():
             # x-axis is ground truth, y axis is error
             # plot includes four subplots
             # fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
-            fig = plt.figure(figsize=(5*len(methods), 5))
+            fig = plt.figure(figsize=(5*len(methods), 5*2))
             gs = gridspec.GridSpec(2, len(methods))
 
             # plot each prediction method
@@ -889,35 +902,46 @@ def main():
                 y_df.head(n=2)
 
                 # scatter plots for x and y
-                joint_x = sns.jointplot(x='v_x', y='delta_v_x', data=x_df, kind='reg', joint_kws = {'scatter_kws':dict(alpha=0.1, s=2)})
-                joint_y = sns.jointplot(x='v_y', y='delta_v_y', data=y_df, kind='reg', joint_kws = {'scatter_kws':dict(alpha=0.1, s=2)})
+                joint_x = sns.jointplot(x='v_x', y='delta_v_x', data=x_df, kind='reg', xlim = (-4, 4), ylim = (-4, 4), joint_kws = {'scatter_kws':dict(alpha=0.01, s=2)})
+                joint_y = sns.jointplot(x='v_y', y='delta_v_y', data=y_df, kind='reg', xlim = (-4, 4), ylim = (-4, 4), joint_kws = {'scatter_kws':dict(alpha=0.01, s=2)})
 
-                mg0 = plot.SeabornFig2Grid(joint_x, fig, gs[0, j])
+                plot.SeabornFig2Grid(joint_x, fig, gs[0, j])
                 joint_x.ax_marg_x.set_title(f'{methods[j]}')
-                mg1 = plot.SeabornFig2Grid(joint_y, fig, gs[1, j])
+                # joint_x.ax_joint.set_aspect('equal')
+                plot.SeabornFig2Grid(joint_y, fig, gs[1, j])
+                # joint_y.ax_joint.set_aspect('equal')
 
             gs.tight_layout(fig)
             plt.show()
 
             # save the image
-            if blur_ground_truth:
-                scatter_dir = os.path.join(output_dir, f'error_scatter_plot_blurred_dpi{my_dpi}')
-            else:
-                scatter_dir = os.path.join(output_dir, f'error_scatter_plot_dpi{my_dpi}')
+            # manutal screent shot is needed for some reasons....
+            # if blur_ground_truth:
+            #     scatter_dir = os.path.join(output_dir, f'error_scatter_plot_blurred_dpi{my_dpi}')
+            # else:
+            #     scatter_dir = os.path.join(output_dir, f'error_scatter_plot_dpi{my_dpi}')
 
-            os.makedirs(scatter_dir, exist_ok=True)
-            scatter_path = os.path.join(scatter_dir, f'error_scatter_{str(i).zfill(4)}.png')
-            plt.savefig(scatter_path, bbox_inches='tight', dpi=my_dpi)
-            fig.clf()
-            plt.close(fig)
+            # os.makedirs(scatter_dir, exist_ok=True)
+            # scatter_path = os.path.join(scatter_dir, f'error_scatter_{str(i).zfill(4)}.png')
+            # plt.savefig(scatter_path, bbox_inches='tight', dpi=my_dpi)
+            # fig.clf()
+            # plt.close(fig)
 
 
     if plot_error_line_plot:
         fig, ax = plt.subplots(figsize=(10, 3))
         plt.suptitle(f'{mode} {loss} for each frame')
 
-        for j, cur_method in enumerate(methods):
-            ax.plot(vis_frames, errors_all_methods[cur_method], label=f'{cur_method}')
+        # error line plot ordering
+        if data == 'rotational':
+            methods_order = ['LiteFlowNet-en', 'memory-piv-net', 'widim', 'pyramid']
+            colors = ['blue', 'orange', 'red', 'green']
+        elif data == 'isotropic_1024':
+            methods_order = ['LiteFlowNet-en', 'widim', 'pyramid', 'memory-piv-net']
+            colors = ['blue', 'red', 'green', 'orange']
+
+        for j, cur_method in enumerate(methods_order):
+            ax.plot(vis_frames, errors_all_methods[cur_method], label=f'{cur_method}', c=colors[j])
             # print average result
             cur_avg_loss = np.nanmean(errors_all_methods[cur_method])
             print(f'{cur_method} {mode} {loss} = {cur_avg_loss}')
@@ -925,7 +949,7 @@ def main():
         # also plot the "quality" of the particle images
         # ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
 
-        ax.set(xlabel='timestamp', ylabel=f'{loss}')
+        ax.set(xlabel='time step', ylabel=f'{loss}')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         plt.legend()
         if blur_ground_truth:
@@ -949,7 +973,7 @@ def main():
         # also plot the "quality" of the particle images
         # ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
 
-        ax.set(xlabel='timestamp', ylabel=f'{loss}')
+        ax.set(xlabel='time step', ylabel=f'{loss}')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         plt.legend()
         if blur_ground_truth:
