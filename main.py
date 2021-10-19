@@ -1724,11 +1724,12 @@ def main():
                         mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
                         # show mini-batch progress
-                        print_progress_bar(iteration=t-9//2+1,
-                                            total=image_sequence.shape[1]-9+1,
-                                            prefix=f'Mini-batch {t-9//2+1}/{image_sequence.shape[1]-9+1},',
-                                            suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
-                                            length=50)
+                        if verbose:
+                            print_progress_bar(iteration=t-9//2+1,
+                                                total=image_sequence.shape[1]-9+1,
+                                                prefix=f'Mini-batch {t-9//2+1}/{image_sequence.shape[1]-9+1},',
+                                                suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                                length=50)
 
                 # one-sided is the modified version where [t-T, t] frames are input, estimate frame t
                 # we are using the multi-frame with T=9 dataset
@@ -1772,11 +1773,12 @@ def main():
                         mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
                         # show mini-batch progress
-                        print_progress_bar(iteration=t+1,
-                                            total=252,
-                                            prefix=f'Mini-batch {t+1}/252,',
-                                            suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
-                                            length=50)
+                        if verbose:
+                            print_progress_bar(iteration=t+1,
+                                                total=252,
+                                                prefix=f'Mini-batch {t+1}/252,',
+                                                suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                                length=50)
                 return all_losses
 
             def validate(self, image_sequence, label_sequence):
@@ -1836,11 +1838,12 @@ def main():
                             mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
                             # show mini-batch progress
-                            print_progress_bar(iteration=t-9//2+1,
-                                                total=image_sequence.shape[1]-9+1,
-                                                prefix=f'Mini-batch {t-9//2+1}/{image_sequence.shape[1]-9+1},',
-                                                suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
-                                                length=50)
+                            if verbose:
+                                print_progress_bar(iteration=t-9//2+1,
+                                                    total=image_sequence.shape[1]-9+1,
+                                                    prefix=f'Mini-batch {t-9//2+1}/{image_sequence.shape[1]-9+1},',
+                                                    suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                                    length=50)
 
                     elif data_type == 'one-sided':
                         for t in range(0, 252):
@@ -1884,11 +1887,12 @@ def main():
                             mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
                             # show mini-batch progress
-                            print_progress_bar(iteration=t+1,
-                                                total=252,
-                                                prefix=f'Mini-batch {t+1}/252,',
-                                                suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
-                                                length=50)
+                            if verbose:
+                                print_progress_bar(iteration=t+1,
+                                                    total=252,
+                                                    prefix=f'Mini-batch {t+1}/252,',
+                                                    suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                                    length=50)
 
 
                     return all_losses
@@ -1978,11 +1982,12 @@ def main():
                     mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
                     # show mini-batch progress
-                    print_progress_bar(iteration=t-4+1,
-                                        total=image_sequence.shape[1]-9,
-                                        prefix=f'Mini-batch {t-4+1}/{image_sequence.shape[1]-9},',
-                                        suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
-                                        length=50)
+                    if verbose:
+                        print_progress_bar(iteration=t-4+1,
+                                            total=image_sequence.shape[1]-9,
+                                            prefix=f'Mini-batch {t-4+1}/{image_sequence.shape[1]-9},',
+                                            suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                            length=50)
 
                 return all_losses
 
@@ -2042,11 +2047,12 @@ def main():
                         mini_batch_time_cost = mini_batch_end_time - mini_batch_start_time
 
                         # show mini-batch progress
-                        print_progress_bar(iteration=t-4+1,
-                                            total=image_sequence.shape[1]-9,
-                                            prefix=f'Mini-batch {t-4+1}/{image_sequence.shape[1]-9},',
-                                            suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
-                                            length=50)
+                        if verbose:
+                            print_progress_bar(iteration=t-4+1,
+                                                total=image_sequence.shape[1]-9,
+                                                prefix=f'Mini-batch {t-4+1}/{image_sequence.shape[1]-9},',
+                                                suffix='%s loss: %.3f, time: %.2f' % (mode, all_losses[-1], mini_batch_time_cost),
+                                                length=50)
 
 
                     return all_losses
@@ -2234,11 +2240,12 @@ def main():
                             batch_time_cost = batch_end_time - batch_start_time
 
                             # show mini-batch progress
-                            print_progress_bar(iteration=j+1,
-                                                total=num_batch,
-                                                prefix=f'Batch {j+1}/{num_batch},',
-                                                suffix='%s loss: %.3f, time: %.2f' % (phase+' '+loss, all_batch_train_losses[-1], batch_time_cost),
-                                                length=50)
+                            if verbose:
+                                print_progress_bar(iteration=j+1,
+                                                    total=num_batch,
+                                                    prefix=f'Batch {j+1}/{num_batch},',
+                                                    suffix='%s loss: %.3f, time: %.2f' % (phase+' '+loss, all_batch_train_losses[-1], batch_time_cost),
+                                                    length=50)
 
                         elif phase == 'val':
                             lmsi_model.eval()
@@ -2261,11 +2268,12 @@ def main():
                             batch_time_cost = batch_end_time - batch_start_time
 
                             # show mini-batch progress
-                            print_progress_bar(iteration=j+1,
-                                                total=num_batch,
-                                                prefix=f'Batch {j+1}/{num_batch},',
-                                                suffix='%s loss: %.3f, time: %.2f' % (phase+' '+loss, all_batch_val_losses[-1], batch_time_cost),
-                                                length=50)
+                            if verbose:
+                                print_progress_bar(iteration=j+1,
+                                                    total=num_batch,
+                                                    prefix=f'Batch {j+1}/{num_batch},',
+                                                    suffix='%s loss: %.3f, time: %.2f' % (phase+' '+loss, all_batch_val_losses[-1], batch_time_cost),
+                                                    length=50)
 
                     print('\n')
 
