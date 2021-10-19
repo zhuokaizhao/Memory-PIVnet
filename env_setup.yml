@@ -6,7 +6,7 @@ dependencies:
   - cudatoolkit=11.1
   - pytorch
   - torchvision
-  - torchaudio
+  # - torchaudio
   - h5py
   - tqdm
   - matplotlib
