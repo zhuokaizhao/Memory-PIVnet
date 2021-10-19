@@ -2091,6 +2091,10 @@ def main():
         # train/val losses for all the epochs
         all_epoch_train_losses = []
         all_epoch_val_losses = []
+        if checkpoint_path != None:
+            all_epoch_train_losses = checkpoint['train_loss'] + all_epoch_train_losses
+            all_epoch_val_losses = checkpoint['val_loss'] + all_epoch_val_losses
+
         for i in range(starting_epoch, starting_epoch+num_epoch):
             print(f'\n Starting epoch {i+1}/{starting_epoch+num_epoch}')
             epoch_start_time = time.time()
@@ -2276,12 +2280,6 @@ def main():
 
             # save loss graph and model
             if (i+1) % save_freq == 0:
-                if checkpoint_path != None:
-                    prev_train_losses = checkpoint['train_loss']
-                    prev_val_losses = checkpoint['val_loss']
-                    all_epoch_train_losses = prev_train_losses + all_epoch_train_losses
-                    all_epoch_val_losses = prev_val_losses + all_epoch_val_losses
-
                 plt.plot(all_epoch_train_losses, label='Train')
                 plt.plot(all_epoch_val_losses, label='Validation')
                 plt.title(f'Training and validation loss on {network_model} model')
