@@ -14,7 +14,8 @@ read end_epoch
 if [ $time_span = 3 ]; then
 	GPU="gpu:rtx2080ti:1"
 else
-	GPU="gpu:rtx8000:1"
+	# GPU="gpu:rtx8000:1"
+    GPU="gpu:a40:1"
 fi
 
 for i in `seq $start_epoch $end_epoch`; do
