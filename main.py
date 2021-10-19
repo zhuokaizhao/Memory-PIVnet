@@ -2275,7 +2275,7 @@ def main():
                         % ((i+1), (epoch_end_time-epoch_start_time), all_epoch_train_losses[-1], all_epoch_val_losses[-1]))
 
             # save loss graph and model
-            if (i+1-starting_epoch) % save_freq == 0:
+            if (i+1) % save_freq == 0:
                 if checkpoint_path != None:
                     prev_train_losses = checkpoint['train_loss']
                     prev_val_losses = checkpoint['val_loss']
