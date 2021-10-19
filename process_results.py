@@ -214,10 +214,10 @@ def main():
         plot_color_encoded = False
         plot_loss_magnitude_heatmap = False
         plot_energy = False
-        plot_error_line_plot = True
+        plot_error_line_plot = False
         plot_result_pdf = False
         plot_error_pdf = False
-        plot_scatter = False
+        plot_scatter = True
     elif mode == 'vorticity':
         blur_ground_truth = False
 
@@ -878,8 +878,17 @@ def main():
             fig = plt.figure(figsize=(5*len(methods), 5*2))
             gs = gridspec.GridSpec(2, len(methods))
 
+            import nrrd
+            true_path = os.path.join(output_dir, 'for_gordon', 'ground_truth', f'ground_truth_{i}.nrrd')
+            nrrd.write(true_path, ground_truth[str(i)])
+
             # plot each prediction method
             for j, cur_method in enumerate(methods):
+
+                # save the method output
+                temp_path = os.path.join(output_dir, 'for_gordon', f'{cur_method}', f'{cur_method}_output_{i}.nrrd')
+                nrrd.write(temp_path, results_all_methods[cur_method][str(i)])
+                continue
 
                 # compute error
                 errors = results_all_methods[cur_method][str(i)] - ground_truth[str(i)]
@@ -890,14 +899,14 @@ def main():
 
                 # put in pandas dataframe
                 x_df = pd.DataFrame({
-                    'v_x': x_errors,
-                    'delta_v_x': x_truths
+                    'v_x': x_truths,
+                    'delta_v_x': x_errors
                 })
                 x_df.head(n=2)
 
                 y_df = pd.DataFrame({
-                    'v_y': y_errors,
-                    'delta_v_y': y_truths
+                    'v_y': y_truths,
+                    'delta_v_y': y_errors
                 })
                 y_df.head(n=2)
 
@@ -912,7 +921,7 @@ def main():
                 # joint_y.ax_joint.set_aspect('equal')
 
             gs.tight_layout(fig)
-            plt.show()
+            # plt.show()
 
             # save the image
             # manutal screent shot is needed for some reasons....
