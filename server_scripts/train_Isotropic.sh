@@ -14,7 +14,7 @@ read end_epoch
 if [ $time_span = 3 ]; then
 	GPU="gpu:rtx2080ti:1"
 else
-	GPU="gpu:rtx8000:4"
+	GPU="gpu:rtx8000:1"
     # GPU="gpu:a40:1"
 fi
 
@@ -24,7 +24,7 @@ for i in `seq $start_epoch $end_epoch`; do
 	echo "#SBATCH --job-name=iso_${num_seeds}_${time_span}_${i}" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --nodes=1" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --ntasks=1" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
-	echo "#SBATCH --cpus-per-task=1" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
+	echo "#SBATCH --cpus-per-task=8" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	# echo "#SBATCH --mem=30G" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --partition general" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	echo "#SBATCH --gres=${GPU}" >> train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
