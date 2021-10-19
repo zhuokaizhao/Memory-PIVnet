@@ -15,4 +15,3 @@ dependencies:
   - scikit-image
   - opencv
   - seaborn
-prefix: /home/zhuokai/anaconda3/envs/pt-1.9.0
