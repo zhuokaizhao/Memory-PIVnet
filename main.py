@@ -1534,7 +1534,7 @@ def main():
         loss = args.loss[0]
 
         if args.save_freq != None:
-            save_freq = args.save_freq[0]
+            save_freq = int(args.save_freq[0])
         else:
             save_freq = num_epoch
 
