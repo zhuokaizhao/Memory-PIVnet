@@ -14,7 +14,7 @@ read end_epoch
 if [ $time_span = 3 ]; then
 	GPU="gpu:rtx2080ti:1"
 else
-	GPU="gpu:rtx8000:8"
+	GPU="gpu:rtx8000:4"
     # GPU="gpu:a40:1"
 fi
 
