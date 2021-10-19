@@ -17,6 +17,7 @@
 *.npz
 *.nrrd
 *.zip
+*.mp4
 
 # tensorboard log
 # logs/
