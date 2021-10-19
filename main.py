@@ -1463,6 +1463,8 @@ def main():
     parser.add_argument('-m', '--model-dir', action='store', nargs=1, dest='model_dir', help=doc.model_dir)
     # output directory (tfrecord in 'data' mode, figure in 'training' mode)
     parser.add_argument('-o', '--output-dir', action='store', nargs=1, dest='output_dir', help=doc.figs_dir)
+    # save checkpoint interval
+    parser.add_argument('-f', '--save-freq', action='store', nargs=1, dest='save_freq')
     # start and end t used when testing (both inclusive)
     parser.add_argument('--start-t', action='store', nargs=1, dest='start_t')
     parser.add_argument('--end-t', action='store', nargs=1, dest='end_t')
@@ -1530,6 +1532,12 @@ def main():
         else:
             time_span = None
         loss = args.loss[0]
+
+        if args.save_freq != None:
+            save_freq = args.save_freq[0]
+        else:
+            save_freq = num_epoch
+
         long_term_memory = args.long_term_memory
 
         # make sure the model_dir is valid
@@ -1612,6 +1620,7 @@ def main():
                 print(f'input validation data dir: {val_dir}')
             print(f'input checkpoint path: {checkpoint_path}')
             print(f'output model dir: {model_dir}')
+            print(f'output model save freq: {save_freq} epoch')
             print(f'output figures dir: {figs_dir}')
             print(f'epoch size: {num_epoch}')
             print(f'batch size: {batch_size}')
@@ -2265,51 +2274,52 @@ def main():
             print('\nEpoch %d completed in %.3f seconds, avg train loss: %.3f, avg val loss: %.3f'
                         % ((i+1), (epoch_end_time-epoch_start_time), all_epoch_train_losses[-1], all_epoch_val_losses[-1]))
 
-        # save loss graph and model
-        if checkpoint_path != None:
-            prev_train_losses = checkpoint['train_loss']
-            prev_val_losses = checkpoint['val_loss']
-            all_epoch_train_losses = prev_train_losses + all_epoch_train_losses
-            all_epoch_val_losses = prev_val_losses + all_epoch_val_losses
+            # save loss graph and model
+            if (i+1-starting_epoch) % save_freq == 0:
+                if checkpoint_path != None:
+                    prev_train_losses = checkpoint['train_loss']
+                    prev_val_losses = checkpoint['val_loss']
+                    all_epoch_train_losses = prev_train_losses + all_epoch_train_losses
+                    all_epoch_val_losses = prev_val_losses + all_epoch_val_losses
 
-        plt.plot(all_epoch_train_losses, label='Train')
-        plt.plot(all_epoch_val_losses, label='Validation')
-        plt.title(f'Training and validation loss on {network_model} model')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.legend(loc='upper right')
-        loss_path = os.path.join(figs_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}_loss.png')
-        plt.savefig(loss_path)
-        print(f'\nLoss graph has been saved to {loss_path}')
+                plt.plot(all_epoch_train_losses, label='Train')
+                plt.plot(all_epoch_val_losses, label='Validation')
+                plt.title(f'Training and validation loss on {network_model} model')
+                plt.xlabel('Epoch')
+                plt.ylabel('Loss')
+                plt.legend(loc='upper right')
+                loss_path = os.path.join(figs_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}_loss.png')
+                plt.savefig(loss_path)
+                print(f'\nLoss graph has been saved to {loss_path}')
 
-        # save model as a checkpoint so further training could be resumed
-        if vorticity:
-            model_path = os.path.join(model_dir, f'{network_model}_vorticity_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
-        else:
-            model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
-        # if trained on multiple GPU's, store model.module.state_dict()
-        if torch.cuda.device_count() > 1:
-            model_checkpoint = {
-                                    'epoch': i+1,
-                                    'state_dict': lmsi_model.module.state_dict(),
-                                    'optimizer': lmsi_optimizer.state_dict(),
-                                    'train_loss': all_epoch_train_losses,
-                                    'val_loss': all_epoch_val_losses
-                                }
-        else:
-            model_checkpoint = {
-                                    'epoch': i+1,
-                                    'state_dict': lmsi_model.state_dict(),
-                                    'optimizer': lmsi_optimizer.state_dict(),
-                                    'train_loss': all_epoch_train_losses,
-                                    'val_loss': all_epoch_val_losses
-                                }
+                # save model as a checkpoint so further training could be resumed
+                if vorticity:
+                    model_path = os.path.join(model_dir, f'{network_model}_vorticity_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
+                else:
+                    model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
+                # if trained on multiple GPU's, store model.module.state_dict()
+                if torch.cuda.device_count() > 1:
+                    model_checkpoint = {
+                                            'epoch': i+1,
+                                            'state_dict': lmsi_model.module.state_dict(),
+                                            'optimizer': lmsi_optimizer.state_dict(),
+                                            'train_loss': all_epoch_train_losses,
+                                            'val_loss': all_epoch_val_losses
+                                        }
+                else:
+                    model_checkpoint = {
+                                            'epoch': i+1,
+                                            'state_dict': lmsi_model.state_dict(),
+                                            'optimizer': lmsi_optimizer.state_dict(),
+                                            'train_loss': all_epoch_train_losses,
+                                            'val_loss': all_epoch_val_losses
+                                        }
 
-        torch.save(model_checkpoint, model_path)
-        print(f'\nTrained model checkpoint has been saved to {model_path}\n')
+                torch.save(model_checkpoint, model_path)
+                print(f'\nTrained model checkpoint has been saved to {model_path}\n')
 
-        train_end_time = time.time()
-        print('\nTraining completed in %.3f seconds' % (train_end_time-train_start_time))
+                train_end_time = time.time()
+                print('\nTraining completed in %.3f seconds' % (train_end_time-train_start_time))
 
 
     # new test mode for train-new that loads model and perform prediction
