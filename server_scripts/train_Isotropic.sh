@@ -43,7 +43,7 @@ for i in `seq $start_epoch $end_epoch`; do
     sbatch train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	rm train_Isotropic_${num_seeds}_${time_span}_${i}.slurm
 	# wait until the current epoch training finished
-	until [ -f /net/scratch/zhuokai/Memory-PIVnet/model/Isotropic_1024/velocity/amnesia_memory/pe/${num_seeds}_seeds/time_span_${time_span}/memory-piv-net_multi-frame_${time_span}_batch4_epoch${i}.pt ]
+	until [ -f /net/scratch/zhuokai/Memory-PIVnet/model/Isotropic_1024/velocity/amnesia_memory/${num_seeds}_seeds/time_span_${time_span}/memory-piv-net_multi-frame_${time_span}_batch8_epoch${i}.pt ]
 	do
 		sleep 5
 	done
