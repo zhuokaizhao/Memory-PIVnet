@@ -93,12 +93,16 @@ def main():
             # corresponding data path or directory
             test_images_dir = '/home/zhuokai/Desktop/nvme1n1p1/Data/LMSI/Zhao_JHTDB/Isotropic_1024/Figs/test/z_662_762/50000/'
             # first is normal, second is reversed
-            ground_truth_paths = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/time_span_5/true_vel_field/',
-                                    '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/amnesia_memory/50000_seeds/time_span_5/true_vel_field/']
+            ground_truth_paths = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vel_field/',
+                                    '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vel_field/']
 
-            methods = ['memory-piv-net']
-            result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/']
+            methods = ['memory-piv-net', 'pyramid', 'widim']
+            result_dirs = [['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/'],
+                           ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov).h5'],
+                           ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/widim/TR_PIV_MPd(1x16x16_50ov).h5']]
 
 
         elif data == 'rotational':
@@ -153,7 +157,7 @@ def main():
         plot_color_encoded = True
         plot_loss_magnitude_heatmap = True
         plot_energy = False
-        plot_error_line_plot = False
+        plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = False
         plot_scatter = False
@@ -178,7 +182,7 @@ def main():
         energy_errors_all_methods = [{}, {}]
 
     if plot_scatter:
-        all_truth_error_pairs = []
+        all_truth_error_pairs = [{}, {}]
 
     # load ground truth of both normal and reversed
     # for sanity check
@@ -209,8 +213,8 @@ def main():
         print(f'Loaded ground truth {mode} has shape ({len(ground_truth)}, {ground_truth[str(time_range[0])].shape})')
 
     # load results from each method
-    for i, cur_method in enumerate(methods):
-        for k, order in enumerate(['normal', 'reversed']):
+    for k, order in enumerate(['normal', 'reversed']):
+        for i, cur_method in enumerate(methods):
             results_all_methods[k][cur_method] = {}
             if plot_error_line_plot:
                 errors_all_methods[k][cur_method] = []
@@ -219,18 +223,18 @@ def main():
             if cur_method == 'memory-piv-net':
                 # load the velocity fields of the specified time range
                 for t in range(time_range[0], time_range[1]+1):
-                    cur_path = os.path.join(result_dirs[i+k], f'test_{mode}_blend_{t}.npz')
+                    cur_path = os.path.join(result_dirs[i][k], f'test_{mode}_blend_{t}.npz')
                     results_all_methods[k][cur_method][str(t)] = np.load(cur_path)[f'{mode}']
 
             if cur_method == 'LiteFlowNet-en':
                 # load the velocity fields of the specified time range
                 for t in range(time_range[0], time_range[1]+1):
-                    cur_path = os.path.join(result_dirs[i], f'lfn_{mode}_{t}.npz')
-                    results_all_methods[cur_method][str(t)] = np.load(cur_path)[f'{mode}']
+                    cur_path = os.path.join(result_dirs[i][k], f'lfn_{mode}_{t}.npz')
+                    results_all_methods[k][cur_method][str(t)] = np.load(cur_path)[f'{mode}']
 
             # for pyramid and standar methods
             elif cur_method == 'pyramid' or cur_method == 'widim':
-                cur_path = result_dirs[i]
+                cur_path = result_dirs[i][k]
                 with h5py.File(cur_path, mode='r') as f:
                     # print('The h5 file contains ', list(f.keys()))
                     ux, uy = f['ux'][...], f['uy'][...]
@@ -243,11 +247,11 @@ def main():
                 for t in range(time_range[0], time_range[1]+1):
                     if mode == 'velocity':
                         cur_velocity = velocity[t].repeat(ratio, axis=0).repeat(ratio, axis=1)
-                        results_all_methods[cur_method][str(t)] = cur_velocity
+                        results_all_methods[k][cur_method][str(t)] = cur_velocity
                     elif mode == 'vorticity':
                         # compute vorticity from velocity
                         cur_vorticity = compute_vorticity(velocity[t], xx, yy)
-                        results_all_methods[cur_method][str(t)] = cur_vorticity.repeat(ratio, axis=0).repeat(ratio, axis=1)
+                        results_all_methods[k][cur_method][str(t)] = cur_vorticity.repeat(ratio, axis=0).repeat(ratio, axis=1)
 
     # print all the shapes
     # for i, cur_method in enumerate(methods):
@@ -255,8 +259,8 @@ def main():
 
 
     # load test images
-    all_pixel_values_sums = []
-    all_test_images = read_images(test_images_dir)
+    # all_pixel_values_sums = []
+    # all_test_images = read_images(test_images_dir)
 
     # max velocity from ground truth is useful for normalization
     if mode == 'velocity':
@@ -440,12 +444,12 @@ def main():
         # error line plot ordering
         # methods_order = ['LiteFlowNet-en', 'memory-piv-net', 'widim', 'pyramid']
         # colors = ['blue', 'orange', 'red', 'green']
-
         for k, order in enumerate(['normal', 'reversed']):
-            ax.plot(vis_frames, errors_all_methods[k][cur_method], label=f'{order}')
-            # print average result
-            cur_avg_loss = np.nanmean(errors_all_methods[k][cur_method])
-            print(f'{order} {cur_method} {mode} {loss} = {cur_avg_loss}')
+            for cur_method in methods:
+                ax.plot(vis_frames, errors_all_methods[k][cur_method], label=f'{cur_method} {order}')
+                # print average result
+                cur_avg_loss = np.nanmean(errors_all_methods[k][cur_method])
+                print(f'{order} {cur_method} {mode} {loss} = {cur_avg_loss}')
 
         # also plot the "quality" of the particle images
         # ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
