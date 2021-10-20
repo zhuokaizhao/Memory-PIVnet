@@ -160,9 +160,10 @@ def main():
 
     if mode == 'velocity':
         if data == 'isotropic_1024':
-            ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vel_field/'
-            methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
-            result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vel_field/',
+            ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vel_field/'
+            methods = ['memory-piv-net-3', 'memory-piv-net-5', 'LiteFlowNet-en', 'pyramid', 'widim']
+            result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_3/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
                             '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
                             '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
                             '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
@@ -214,7 +215,7 @@ def main():
         plot_color_encoded = False
         plot_loss_magnitude_heatmap = False
         plot_energy = False
-        plot_error_line_plot = False
+        plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = False
         plot_scatter = False
@@ -278,7 +279,7 @@ def main():
             errors_all_methods[cur_method] = []
             energy_errors_all_methods[cur_method] = []
 
-        if cur_method == 'memory-piv-net':
+        if 'memory-piv-net' in cur_method:
             # load the velocity fields of the specified time range
             for t in range(time_range[0], time_range[1]+1):
                 cur_path = os.path.join(result_dirs[i], f'test_{mode}_blend_{t}.npz')
@@ -947,8 +948,8 @@ def main():
             methods_order = ['LiteFlowNet-en', 'memory-piv-net', 'widim', 'pyramid']
             colors = ['blue', 'orange', 'red', 'green']
         elif data == 'isotropic_1024':
-            methods_order = ['LiteFlowNet-en', 'widim', 'pyramid', 'memory-piv-net']
-            colors = ['blue', 'red', 'green', 'orange']
+            methods_order = ['LiteFlowNet-en', 'memory-piv-net-3', 'widim', 'pyramid', 'memory-piv-net-5']
+            colors = ['blue', 'purple', 'red', 'green', 'orange']
 
         for j, cur_method in enumerate(methods_order):
             ax.plot(vis_frames, errors_all_methods[cur_method], label=f'{cur_method}', c=colors[j])
