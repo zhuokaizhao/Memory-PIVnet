@@ -217,7 +217,8 @@ def main():
         plot_error_line_plot = False
         plot_result_pdf = False
         plot_error_pdf = False
-        plot_scatter = True
+        plot_scatter = False
+
     elif mode == 'vorticity':
         blur_ground_truth = False
 

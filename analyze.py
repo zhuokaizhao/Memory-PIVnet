@@ -1,4 +1,4 @@
-# The script analyzes all output .npy files and generate one figure
+# The script analyzes all output .npy files and generate one figure (For Master Paper)
 import os
 import numpy as np
 import matplotlib.pyplot as plt
