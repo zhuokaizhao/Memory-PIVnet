@@ -122,30 +122,65 @@ def main():
         min_truth = -1
 
 
-    bin_width = 0.05
-    bins = np.arange(min_truth, max_truth, bin_width)
+    bin_width = 0.1
+    bins = np.arange(min_truth, max_truth+bin_width, bin_width)
+    # loss is stored based on velocity bins
+    # each velocity bin contains average loss in x and y (two values)
+    all_error = {}
+    window_comparison_dir = os.path.join(output_dir, 'window_lengths_comparison')
+    os.makedirs(window_comparison_dir, exist_ok=True)
+
     # visualizing the results
     for i in tqdm(vis_frames):
+        all_error[str(i)] = np.zeros((len(bins)-1, len(window_lengths), 2))
+        # x and y direction
         for k in range(2):
             # plot histogram about the velocities
-            gt_hist, bins = np.histogram(ground_truth[str(i)][:, :, k].flatten(), bins, density=False)
-            fig, ax = plt.subplots()
-            print(gt_hist)
-            ax.plot(bins[:-1], gt_hist)
-            # plt.show()
-            for j in range(len(bins)):
+            gt_hist, bins = np.histogram(ground_truth[str(i)][:, :, k].flatten(), bins, density=True)
+
+            # check accuracies on specific locations
+            for j in range(len(bins)-1):
                 bin_left = bins[j]
                 bin_right = bins[j+1]
-                a = np.where(np.logical_and(ground_truth[str(i)][:, :, k]>bin_left, ground_truth[str(i)][:, :, k]<bin_right))
-                print(a)
-                exit()
+                x_pos, y_pos = np.where(np.logical_and(ground_truth[str(i)][:, :, k]>bin_left, ground_truth[str(i)][:, :, k]<bin_right))
 
+                # compute error percentage of these positions
+                if len(x_pos) != 0:
+                    for l, length in enumerate(window_lengths):
+                        if loss == 'MAE':
+                            cur_loss = np.abs(ground_truth[str(i)][x_pos, y_pos, k] - results_all_windows[length][str(i)][x_pos, y_pos, k]).mean(axis=None)
+                        elif loss == 'MSE':
+                            cur_loss = np.square(ground_truth[str(i)][x_pos, y_pos, k] - results_all_windows[length][str(i)][x_pos, y_pos, k]).mean(axis=None)
+                        elif loss == 'RMSE':
+                            cur_loss = np.sqrt(np.square(ground_truth[str(i)][x_pos, y_pos, k] - results_all_windows[length][str(i)][x_pos, y_pos, k])).mean(axis=None)
 
+                        all_error[str(i)][j, l, k] = cur_loss
 
+        fig, ax = plt.subplots()
+        ax.bar(bins[:-1], gt_hist, bin_width)
+        ax.set_xlabel('Velocity')
+        ax.set_ylabel('Velocity PDF')
+        # line plot of each window length
+        # instantiate a second axes that shares the same x-axis
+        ax2 = ax.twinx()
+        ax2.set_ylabel(f'{loss}')
+        def zero_to_nan(values):
+            """Replace every 0 with 'nan' and return a copy."""
+            return [float('nan') if x==0 else x for x in values]
 
+        colors = ['black', 'orange']
+        styles = ['solid', 'dashed']
+        for k, dim in enumerate(['x', 'y']):
+            for l, length in enumerate(window_lengths):
+                ax2.plot(bins[:-1], zero_to_nan(all_error[str(i)][:, l, k]), label=f'{dim}, l={length}', c=colors[l], linestyle=styles[k])
 
+        plt.legend()
+        window_comparison_path = os.path.join(window_comparison_dir, f'window_comparison_{str(i).zfill(4)}.png')
+        plt.savefig(window_comparison_path, bbox_inches='tight', dpi=my_dpi)
+        fig.clf()
+        plt.close(fig)
 
-
+    print(f'All window length comparison plots have been saved to {window_comparison_dir}')
 
 if __name__ == "__main__":
     main()
