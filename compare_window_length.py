@@ -43,7 +43,7 @@ def main():
     my_dpi = 100
 
     # all the window lengths
-    window_lengths = [3, 5]
+    window_lengths = [3, 9]
     methods = []
     result_dirs = []
 
@@ -86,7 +86,13 @@ def main():
     all_y_rms = []
     for t in range(time_range[0], time_range[1]+1):
         cur_path = os.path.join(ground_truth_path, f'true_{mode}_{t}.npz')
-        ground_truth[str(t)] = np.load(cur_path)[f'{mode}']
+        gt_velocity = np.load(cur_path)[f'{mode}']
+        # add magnitude
+        gt_velocity_mag = np.zeros((gt_velocity.shape[0], gt_velocity.shape[1], 3))
+        gt_velocity_mag[:, :, :2] = gt_velocity
+        gt_velocity_mag[:, :, 2] = np.sqrt(np.square(gt_velocity[:, :, 0]) + np.square(gt_velocity[:, :, 1]))
+
+        ground_truth[str(t)] = gt_velocity_mag
 
         all_x.append(np.mean(np.abs(ground_truth[str(t)][:, :, 0])))
         all_y.append(np.mean(np.abs(ground_truth[str(t)][:, :, 1])))
@@ -107,7 +113,12 @@ def main():
         # load the velocity fields of the specified time range
         for t in range(time_range[0], time_range[1]+1):
             cur_path = os.path.join(result_dirs[i], f'test_{mode}_blend_{t}.npz')
-            results_all_windows[length][str(t)] = np.load(cur_path)[f'{mode}']
+            loaded_velocity = np.load(cur_path)[f'{mode}']
+            loaded_velocity_mag = np.zeros((loaded_velocity.shape[0], loaded_velocity.shape[1], 3))
+            loaded_velocity_mag[:, :, :2] = loaded_velocity
+            loaded_velocity_mag[:, :, 2] = np.sqrt(np.square(loaded_velocity[:, :, 0]) + np.square(loaded_velocity[:, :, 1]))
+
+            results_all_windows[length][str(t)] = loaded_velocity_mag
 
     for i, length in enumerate(window_lengths):
         print(f'memory-piv-net-{length} {mode} has shape ({len(results_all_windows[length])}, {results_all_windows[length][str(time_range[0])].shape})')
@@ -122,45 +133,58 @@ def main():
         min_truth = -1
 
 
-    bin_width = 0.1
-    bins = np.arange(min_truth, max_truth+bin_width, bin_width)
     # loss is stored based on velocity bins
     # each velocity bin contains average loss in x and y (two values)
-    all_error = {}
     window_comparison_dir = os.path.join(output_dir, 'window_lengths_comparison')
     os.makedirs(window_comparison_dir, exist_ok=True)
 
     # visualizing the results
-    for i in tqdm(vis_frames):
-        all_error[str(i)] = np.zeros((len(bins)-1, len(window_lengths), 2))
-        # x and y direction
-        for k in range(2):
-            # plot histogram about the velocities
-            gt_hist, bins = np.histogram(ground_truth[str(i)][:, :, k].flatten(), bins, density=True)
+    # x, y and r direction
+    for k, dim in enumerate(['x', 'y', 'r']):
+        if dim == 'x' or dim == 'y':
+            bin_width = 0.1
+            bins = np.arange(min_truth, max_truth+bin_width, bin_width)
+        else:
+            bin_width = 0.1
+            bins = np.arange(0, 6, bin_width)
 
-            # check accuracies on specific locations
+        # plot histogram about the velocities
+        all_gt_hist = np.zeros((len(vis_frames), len(bins)-1))
+
+        # all the errors in each direction
+        all_error = np.zeros((len(vis_frames), len(bins)-1, len(window_lengths), 3))
+
+        for i, index in tqdm(enumerate(vis_frames)):
+
+            # get the pdf result
+            gt_hist, _ = np.histogram(ground_truth[str(index)][:, :, k].flatten(), bins, density=True)
+            all_gt_hist[i] = gt_hist
+
+            # check accuracies on specific locations based on velocity bin [bin_left, bin right)
             for j in range(len(bins)-1):
                 bin_left = bins[j]
                 bin_right = bins[j+1]
-                x_pos, y_pos = np.where(np.logical_and(ground_truth[str(i)][:, :, k]>bin_left, ground_truth[str(i)][:, :, k]<bin_right))
+                x_pos, y_pos = np.where(np.logical_and(ground_truth[str(index)][:, :, k]>=bin_left, ground_truth[str(index)][:, :, k]<bin_right))
 
-                # compute error percentage of these positions
+                # compute error of these positions
                 if len(x_pos) != 0:
                     for l, length in enumerate(window_lengths):
                         if loss == 'MAE':
-                            cur_loss = np.abs(ground_truth[str(i)][x_pos, y_pos, k] - results_all_windows[length][str(i)][x_pos, y_pos, k]).mean(axis=None)
+                            cur_loss = np.abs(ground_truth[str(index)][x_pos, y_pos, k] - results_all_windows[length][str(index)][x_pos, y_pos, k]).mean(axis=None)
                         elif loss == 'MSE':
-                            cur_loss = np.square(ground_truth[str(i)][x_pos, y_pos, k] - results_all_windows[length][str(i)][x_pos, y_pos, k]).mean(axis=None)
+                            cur_loss = np.square(ground_truth[str(index)][x_pos, y_pos, k] - results_all_windows[length][str(index)][x_pos, y_pos, k]).mean(axis=None)
                         elif loss == 'RMSE':
-                            cur_loss = np.sqrt(np.square(ground_truth[str(i)][x_pos, y_pos, k] - results_all_windows[length][str(i)][x_pos, y_pos, k])).mean(axis=None)
+                            cur_loss = np.sqrt(np.square(ground_truth[str(index)][x_pos, y_pos, k] - results_all_windows[length][str(index)][x_pos, y_pos, k])).mean(axis=None)
 
-                        all_error[str(i)][j, l, k] = cur_loss
+                        all_error[i, j, l, k] = cur_loss
 
+        # take average of bins
         fig, ax = plt.subplots()
-        ax.bar(bins[:-1], gt_hist, bin_width)
-        ax.set_xlabel('Velocity')
-        ax.set_ylabel('Velocity PDF')
-        # line plot of each window length
+        avg_gt_hist = np.mean(all_gt_hist, axis=0)
+        ax.bar(bins[:-1], avg_gt_hist, bin_width)
+        ax.set_xlabel(f'Velocity {dim}')
+        ax.set_ylabel(f'Velocity {dim} PDF')
+
         # instantiate a second axes that shares the same x-axis
         ax2 = ax.twinx()
         ax2.set_ylabel(f'{loss}')
@@ -169,13 +193,12 @@ def main():
             return [float('nan') if x==0 else x for x in values]
 
         colors = ['black', 'orange']
-        styles = ['solid', 'dashed']
-        for k, dim in enumerate(['x', 'y']):
-            for l, length in enumerate(window_lengths):
-                ax2.plot(bins[:-1], zero_to_nan(all_error[str(i)][:, l, k]), label=f'{dim}, l={length}', c=colors[l], linestyle=styles[k])
+        avg_error = np.mean(all_error, axis=0)
+        for l, length in enumerate(window_lengths):
+            ax2.plot(bins[:-1], zero_to_nan(avg_error[:, l, k]), label=f'l={length}', c=colors[l], linestyle='solid')
 
         plt.legend()
-        window_comparison_path = os.path.join(window_comparison_dir, f'window_comparison_{str(i).zfill(4)}.png')
+        window_comparison_path = os.path.join(window_comparison_dir, f'window_comparison_{dim}.png')
         plt.savefig(window_comparison_path, bbox_inches='tight', dpi=my_dpi)
         fig.clf()
         plt.close(fig)
