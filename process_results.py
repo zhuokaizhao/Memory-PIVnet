@@ -160,13 +160,17 @@ def main():
 
     if mode == 'velocity':
         if data == 'isotropic_1024':
-            ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vel_field/'
-            methods = ['memory-piv-net-3', 'memory-piv-net-5', 'LiteFlowNet-en', 'pyramid', 'widim']
-            result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_3/blend_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
+            ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/'
+            # methods = ['memory-piv-net-3', 'memory-piv-net-5', 'LiteFlowNet-en', 'pyramid', 'widim']
+            # result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_3/blend_vel_field/',
+            #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
+            #                 '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Isotropic_1024/50000_seeds/lfn_vel_field/',
+            #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
+            #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
+
+            methods = ['mpn-5', 'mpn-5-aug']
+            result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/original/blend_vel_field/']
         elif data == 'rotational':
             ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/amnesia_memory/4000_seeds/no_pe/time_span_5/true_vel_field/'
             methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
@@ -212,7 +216,7 @@ def main():
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = False
+        plot_color_encoded = True
         plot_loss_magnitude_heatmap = False
         plot_energy = False
         plot_error_line_plot = True
@@ -279,7 +283,7 @@ def main():
             errors_all_methods[cur_method] = []
             energy_errors_all_methods[cur_method] = []
 
-        if 'memory-piv-net' in cur_method:
+        if 'memory-piv-net' in cur_method or 'mpn' in cur_method:
             # load the velocity fields of the specified time range
             for t in range(time_range[0], time_range[1]+1):
                 cur_path = os.path.join(result_dirs[i], f'test_{mode}_blend_{t}.npz')
@@ -498,7 +502,7 @@ def main():
                                     scale_units='inches')
                 Q._init()
                 assert isinstance(Q.scale, float)
-                # axes[0].set_title(f'Ground truth')
+                axes[0].set_title(f'Ground truth')
                 axes[0].set_xlabel('x')
                 axes[0].set_ylabel('y')
 
@@ -530,7 +534,7 @@ def main():
                                         scale_units='inches')
                     Q._init()
                     assert isinstance(Q.scale, float)
-                    # axes[j+1].set_title(f'{cur_method}')
+                    axes[j+1].set_title(f'{cur_method}')
                     axes[j+1].set_xlabel('x')
                     axes[j+1].set_ylabel('y')
 
@@ -875,22 +879,20 @@ def main():
             import matplotlib.gridspec as gridspec
 
             # x-axis is ground truth, y axis is error
-            # plot includes four subplots
-            # fig, axes = plt.subplots(nrows=1, ncols=len(methods), figsize=(5*len(methods), 5))
             fig = plt.figure(figsize=(5*len(methods), 5*2))
             gs = gridspec.GridSpec(2, len(methods))
 
-            import nrrd
-            true_path = os.path.join(output_dir, 'for_gordon', 'ground_truth', f'ground_truth_{i}.nrrd')
-            nrrd.write(true_path, ground_truth[str(i)])
+            # import nrrd
+            # true_path = os.path.join(output_dir, 'for_gordon', 'ground_truth', f'ground_truth_{i}.nrrd')
+            # nrrd.write(true_path, ground_truth[str(i)])
 
             # plot each prediction method
             for j, cur_method in enumerate(methods):
 
                 # save the method output
-                temp_path = os.path.join(output_dir, 'for_gordon', f'{cur_method}', f'{cur_method}_output_{i}.nrrd')
-                nrrd.write(temp_path, results_all_methods[cur_method][str(i)])
-                continue
+                # temp_path = os.path.join(output_dir, 'for_gordon', f'{cur_method}', f'{cur_method}_output_{i}.nrrd')
+                # nrrd.write(temp_path, results_all_methods[cur_method][str(i)])
+                # continue
 
                 # compute error
                 errors = results_all_methods[cur_method][str(i)] - ground_truth[str(i)]
@@ -913,8 +915,9 @@ def main():
                 y_df.head(n=2)
 
                 # scatter plots for x and y
-                joint_x = sns.jointplot(x='v_x', y='delta_v_x', data=x_df, kind='reg', xlim = (-4, 4), ylim = (-4, 4), joint_kws = {'scatter_kws':dict(alpha=0.01, s=2)})
-                joint_y = sns.jointplot(x='v_y', y='delta_v_y', data=y_df, kind='reg', xlim = (-4, 4), ylim = (-4, 4), joint_kws = {'scatter_kws':dict(alpha=0.01, s=2)})
+                # joint_x = sns.jointplot(x='v_x', y='delta_v_x', data=x_df, kind='hist', xlim = (-4, 4), ylim = (-4, 4), joint_kws = {'hist_kws':dict(cbar=True)})
+                joint_x = sns.jointplot(x='v_x', y='delta_v_x', data=x_df, kind='hist', xlim = (-4, 4), ylim = (-4, 4))
+                joint_y = sns.jointplot(x='v_y', y='delta_v_y', data=y_df, kind='hist', xlim = (-4, 4), ylim = (-4, 4))
 
                 plot.SeabornFig2Grid(joint_x, fig, gs[0, j])
                 joint_x.ax_marg_x.set_title(f'{methods[j]}')
@@ -923,7 +926,7 @@ def main():
                 # joint_y.ax_joint.set_aspect('equal')
 
             gs.tight_layout(fig)
-            # plt.show()
+            plt.show()
 
             # save the image
             # manutal screent shot is needed for some reasons....
@@ -948,8 +951,12 @@ def main():
             methods_order = ['LiteFlowNet-en', 'memory-piv-net', 'widim', 'pyramid']
             colors = ['blue', 'orange', 'red', 'green']
         elif data == 'isotropic_1024':
-            methods_order = ['LiteFlowNet-en', 'memory-piv-net-3', 'widim', 'pyramid', 'memory-piv-net-5']
-            colors = ['blue', 'purple', 'red', 'green', 'orange']
+            # methods_order = ['LiteFlowNet-en', 'memory-piv-net-3', 'widim', 'pyramid', 'memory-piv-net-5']
+            # colors = ['blue', 'purple', 'red', 'green', 'orange']
+            # methods_order = ['memory-piv-net-3', 'memory-piv-net-9']
+            # colors = ['black', 'orange']
+            methods_order = ['mpn-5', 'mpn-5-aug']
+            colors = ['black', 'orange']
 
         for j, cur_method in enumerate(methods_order):
             ax.plot(vis_frames, errors_all_methods[cur_method], label=f'{cur_method}', c=colors[j])
