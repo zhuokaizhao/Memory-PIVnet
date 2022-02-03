@@ -1,14 +1,14 @@
-import torch
-import numpy as np
+# GPU version of vorticity that replaces numpy with cupy
+import cupy as cp
 import matplotlib.pyplot as plt
 
 
-def curl(udata, dx=1., dy=1., dz=1., xyz_orientations=np.asarray([1, -1, 1]),
+def curl(udata, dx=1., dy=1., dz=1., xyz_orientations=cp.asarray([1, -1, 1]),
          xx=None, yy=None, zz=None, verbose=False):
     """
     Computes curl of a velocity field using a rate of strain tensor
     ... if you already have velocity data as ux = array with shape (m, n) and uy = array with shape (m, n),
-        udata = np.stack((ugrid1, vgrid1))
+        udata = cp.stack((ugrid1, vgrid1))
         omega = vec.curl(udata)
     Parameters
     ----------
@@ -56,21 +56,21 @@ def curl(udata, dx=1., dy=1., dz=1., xyz_orientations=np.asarray([1, -1, 1]),
         # sign issue was checked. this is correct.
         omega1, omega2, omega3 = 2. * gij[..., 2, 1], 2. * gij[..., 0, 2], 2. * gij[..., 1, 0]
         # omega1, omega2, omega3 = -2. * gij[..., 2, 1], 2. * gij[..., 0, 2], -2. * gij[..., 1, 0]
-        omega = np.stack((omega1, omega2, omega3))
+        omega = cp.stack((omega1, omega2, omega3))
     else:
         print('Not implemented yet!')
         return None
     return omega
 
 
-def get_duidxj_tensor(udata, dx=1., dy=1., dz=1., xyz_orientations=np.asarray([1, -1, 1]),
+def get_duidxj_tensor(udata, dx=1., dy=1., dz=1., xyz_orientations=cp.asarray([1, -1, 1]),
                       xx=None, yy=None, zz=None):
     """
     Assumes udata has a shape (d, nrows, ncols, duration) or  (d, nrows, ncols)
-    ... one can easily make udata by np.stack((ux, uy))
+    ... one can easily make udata by cp.stack((ux, uy))
 
     Important Warning:
-    ... udata is np.stack((ux, uy, uz))
+    ... udata is cp.stack((ux, uy, uz))
     ... udata.shape = dim, nrows, ncols, duration
     Parameters
     ----------
@@ -140,12 +140,12 @@ def get_duidxj_tensor(udata, dx=1., dy=1., dz=1., xyz_orientations=np.asarray([1
             ux = ux.reshape((ux.shape[0], ux.shape[1], duration))
             uy = uy.reshape((uy.shape[0], uy.shape[1], duration))
 
-        duxdx = np.gradient(ux, dx, axis=1) * xyz_orientations[0]
-        duxdy = np.gradient(ux, dy, axis=0) * xyz_orientations[
-            1]  # +dy is the column up. np gradient computes difference by going DOWN in the column, which is the opposite
-        duydx = np.gradient(uy, dx, axis=1) * xyz_orientations[0]
-        duydy = np.gradient(uy, dy, axis=0) * xyz_orientations[1]
-        sij = np.zeros((nrows, ncols, duration, dim, dim))
+        duxdx = cp.gradient(ux, dx, axis=1) * xyz_orientations[0]
+        duxdy = cp.gradient(ux, dy, axis=0) * xyz_orientations[
+            1]  # +dy is the column up. cp gradient computes difference by going DOWN in the column, which is the opposite
+        duydx = cp.gradient(uy, dx, axis=1) * xyz_orientations[0]
+        duydy = cp.gradient(uy, dy, axis=0) * xyz_orientations[1]
+        sij = cp.zeros((nrows, ncols, duration, dim, dim))
         sij[..., 0, 0] = duxdx
         sij[..., 0, 1] = duxdy
         sij[..., 1, 0] = duydx
@@ -161,17 +161,17 @@ def get_duidxj_tensor(udata, dx=1., dy=1., dz=1., xyz_orientations=np.asarray([1
             ux = ux.reshape((ux.shape[0], ux.shape[1], ux.shape[2], duration))
             uy = uy.reshape((uy.shape[0], uy.shape[1], uy.shape[2], duration))
             uz = uz.reshape((uz.shape[0], uz.shape[1], uz.shape[2], duration))
-        duxdx = np.gradient(ux, dx, axis=1) * xyz_orientations[0]
-        duxdy = np.gradient(ux, dy, axis=0) * xyz_orientations[1]
-        duxdz = np.gradient(ux, dz, axis=2) * xyz_orientations[2]
-        duydx = np.gradient(uy, dx, axis=1) * xyz_orientations[0]
-        duydy = np.gradient(uy, dy, axis=0) * xyz_orientations[1]
-        duydz = np.gradient(uy, dz, axis=2) * xyz_orientations[2]
-        duzdx = np.gradient(uz, dx, axis=1) * xyz_orientations[0]
-        duzdy = np.gradient(uz, dy, axis=0) * xyz_orientations[1]
-        duzdz = np.gradient(uz, dz, axis=2) * xyz_orientations[2]
+        duxdx = cp.gradient(ux, dx, axis=1) * xyz_orientations[0]
+        duxdy = cp.gradient(ux, dy, axis=0) * xyz_orientations[1]
+        duxdz = cp.gradient(ux, dz, axis=2) * xyz_orientations[2]
+        duydx = cp.gradient(uy, dx, axis=1) * xyz_orientations[0]
+        duydy = cp.gradient(uy, dy, axis=0) * xyz_orientations[1]
+        duydz = cp.gradient(uy, dz, axis=2) * xyz_orientations[2]
+        duzdx = cp.gradient(uz, dx, axis=1) * xyz_orientations[0]
+        duzdy = cp.gradient(uz, dy, axis=0) * xyz_orientations[1]
+        duzdz = cp.gradient(uz, dz, axis=2) * xyz_orientations[2]
 
-        sij = np.zeros((nrows, ncols, nstacks, duration, dim, dim))
+        sij = cp.zeros((nrows, ncols, nstacks, duration, dim, dim))
         sij[..., 0, 0] = duxdx
         sij[..., 0, 1] = duxdy
         sij[..., 0, 2] = duxdz
@@ -210,8 +210,8 @@ def decompose_duidxj(sij):
     elif dim == 3:
         duration = sij.shape[3]
 
-    eij = np.zeros(sij.shape)
-    # gij = np.zeros(sij.shape) #anti-symmetric part
+    eij = cp.zeros(sij.shape)
+    # gij = cp.zeros(sij.shape) #anti-symmetric part
     for t in range(duration):
         for i in range(dim):
             for j in range(dim):
@@ -241,24 +241,24 @@ def get_jacobian_xyz_ijk(xx, yy, zz=None):
     Returns
     -------
     jacobian: 1d array
-        ... expected input of xyz_orientations for get_duidxj_tensor
+        ... expected icput of xyz_orientations for get_duidxj_tensor
     """
 
     dim = len(xx.shape)
     if dim == 2:
         x = xx[0, :]
         y = yy[:, 0]
-        increments = [np.nanmean(np.diff(x)), np.nanmean(np.diff(y))]
+        increments = [cp.nanmean(cp.diff(x)), cp.nanmean(cp.diff(y))]
     elif dim == 3:
         x = xx[0, :, 0]
         y = yy[:, 0, 0]
         z = zz[0, 0, :]
-        increments = [np.nanmean(np.diff(x)), np.nanmean(np.diff(y)), np.nanmean(np.diff(z))]
+        increments = [cp.nanmean(cp.diff(x)), cp.nanmean(cp.diff(y)), cp.nanmean(cp.diff(z))]
     else:
         raise ValueError('... xx, yy, zz must have dimensions of 2 or 3. ')
 
     mapping = {True: 1, False: -1}
-    jacobian = np.asarray([mapping[increment > 0] for increment in increments])  # Only diagonal elements
+    jacobian = cp.asarray([mapping[increment.item() > 0] for increment in increments])  # Only diagonal elements
     return jacobian
 
 
@@ -266,13 +266,13 @@ def get_grid_spacing(xx, yy, zz=None):
     """Returns a grid spacing- the given grids must be evenly spaced"""
     dim = len(xx.shape)
     if dim == 2:
-        dx = np.abs(xx[0, 1] - xx[0, 0])
-        dy = np.abs(yy[1, 0] - yy[0, 0])
+        dx = cp.abs(xx[0, 1] - xx[0, 0])
+        dy = cp.abs(yy[1, 0] - yy[0, 0])
         return dx, dy
     elif dim == 3:
-        dx = np.abs(xx[0, 1, 0] - xx[0, 0, 0])
-        dy = np.abs(yy[1, 0, 0] - yy[0, 0, 0])
-        dz = np.abs(zz[0, 0, 1] - zz[0, 0, 0])
+        dx = cp.abs(xx[0, 1, 0] - xx[0, 0, 0])
+        dy = cp.abs(yy[1, 0, 0] - yy[0, 0, 0])
+        dz = cp.abs(zz[0, 0, 1] - zz[0, 0, 0])
         return dx, dy, dz
 
 
@@ -303,15 +303,15 @@ def rankine_vortex_2d(xx, yy, x0=0, y0=0, gamma=1., a=1.):
     rr, phi = cart2pol(xx - x0, yy - y0)
 
     cond = rr <= a
-    ux, uy = np.empty_like(rr), np.empty_like(rr)
+    ux, uy = cp.empty_like(rr), cp.empty_like(rr)
     # r <= a
-    ux[cond] = -gamma * rr[cond] / (2 * np.pi * a ** 2) * np.sin(phi[cond])
-    uy[cond] = gamma * rr[cond] / (2 * np.pi * a ** 2) * np.cos(phi[cond])
+    ux[cond] = -gamma * rr[cond] / (2 * cp.pi * a ** 2) * cp.sin(phi[cond])
+    uy[cond] = gamma * rr[cond] / (2 * cp.pi * a ** 2) * cp.cos(phi[cond])
     # r > a
-    ux[~cond] = -gamma / (2 * np.pi * rr[~cond]) * np.sin(phi[~cond])
-    uy[~cond] = gamma / (2 * np.pi * rr[~cond]) * np.cos(phi[~cond])
+    ux[~cond] = -gamma / (2 * cp.pi * rr[~cond]) * cp.sin(phi[~cond])
+    uy[~cond] = gamma / (2 * cp.pi * rr[~cond]) * cp.cos(phi[~cond])
 
-    udata = np.stack((ux, uy))
+    udata = cp.stack((ux, uy))
 
     return udata
 
@@ -330,8 +330,8 @@ def cart2pol(x, y):
     r: numpy array
     phi: numpy array
     """
-    r = np.sqrt(x ** 2 + y ** 2)
-    phi = np.arctan2(y, x)
+    r = cp.sqrt(x ** 2 + y ** 2)
+    phi = cp.arctan2(y, x)
 
     return r, phi
 
@@ -343,9 +343,9 @@ def compute_vorticity(velocity_field):
     num_rows = velocity_field.shape[2].cpu()
     num_cols = velocity_field.shape[3].cpu()
     x, y = list(range(num_cols)), list(range(num_rows))
-    xx, yy = np.meshgrid(x, y)
+    xx, yy = cp.meshgrid(x, y)
 
-    all_vorticity = np.zeros((velocity_field.shape[0],
+    all_vorticity = cp.zeros((velocity_field.shape[0],
                                 1,
                                 velocity_field.shape[2],
                                 velocity_field.shape[3]))
@@ -362,31 +362,4 @@ def compute_vorticity(velocity_field):
 
 
 
-if __name__=='__main__':
-    # Vorticity (2D)
-    # Create a sample v-field
-    nrows, ncols = 64, 64
-    x, y = list(range(ncols)), list(range(nrows))
-    xx, yy = np.meshgrid(x, y)
-    udata = rankine_vortex_2d(xx, yy, x0=32, y0=32, a=10)
-    print(xx)
-    print(udata.shape)
 
-    # Compute vorticity
-    ## For a 2D v-field, it returns an array with a shape (nrows, ncols, duration)
-    ## In this example, udata has a shape (2, nrows, ncols) but one can pass a more general v-field with a shape (2, nrows, ncols, duration)
-    ## curl() also works with a 3D v-field input. udata.shape = (3, nrows, ncols, ndepth) or (3, nrows, ncols, ndepth, duration)
-    ## In this case, curl returns an array (3, nrows, ncols, ndepth, duration).
-    omega = curl(udata, xx=xx, yy=yy)
-    print(omega.shape)
-
-    # PLOTTING
-    fig, ax = plt.subplots(figsize=(8, 8))
-    plt.pcolormesh(xx, yy, omega[..., 0], cmap='bwr', vmin=-3e-3, vmax=3e-3)
-    plt.colorbar(label='$\omega_z$')
-    plt.gca().set_aspect('equal')
-    inc = 4
-    plt.gca().quiver(xx[::inc, ::inc], yy[::inc, ::inc], udata[0, ::inc, ::inc], udata[1, ::inc, ::inc], )
-    plt.gca().set_xlabel('$x$')
-    plt.gca().set_ylabel('$y$')
-    plt.show()
