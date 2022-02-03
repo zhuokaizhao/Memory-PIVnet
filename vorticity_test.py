@@ -31,7 +31,7 @@ if __name__=='__main__':
     omega = vorticity.curl(udata, xx=xx, yy=yy)
     cpu_end_time = time.time()
     print('Vorticity shape', omega.shape)
-    print(f'Curl on CPU took {cpu_end_time-cpu_start_time} seconds')
+    print(f'Curl on CPU took {cpu_end_time-cpu_start_time} seconds\n')
 
     # PLOTTING
     if plot:
@@ -46,12 +46,13 @@ if __name__=='__main__':
         plt.show()
 
     # gpu
+    cp.cuda.Device(0).use()
     # Create a sample v-field
     nrows, ncols = 64, 64
     x, y = cp.array(range(ncols)), cp.array(range(nrows))
     xx, yy = cp.meshgrid(x, y)
     udata = vorticity_gpu.rankine_vortex_2d(xx, yy, x0=32, y0=32, a=10)
-    print('\nCompute curl on GPU')
+    print(f'Compute curl on GPU {udata.device} out of {cp.cuda.runtime.getDeviceCount()}')
     gpu_start_time = time.time()
     print('Velocity shape', udata.shape)
 
@@ -66,13 +67,13 @@ if __name__=='__main__':
     print(f'Curl on GPU took {gpu_end_time-gpu_start_time} seconds\n')
 
     # confirm if both arrays are the same
-    # if not np.array_equiv(omega, cp.asnumpy(omega_gpu)):
-    #     print(omega.shape)
-    #     print(omega)
-    #     print(cp.asnumpy(omega_gpu).shape)
-    #     print(cp.asnumpy(omega_gpu))
-    #     print(omega-cp.asnumpy(omega_gpu))
-    #     raise Exception(f'Results from CPU and GPU are not the same')
+    if not np.allclose(omega, cp.asnumpy(omega_gpu)):
+        print(omega.shape)
+        print(omega)
+        print(cp.asnumpy(omega_gpu).shape)
+        print(cp.asnumpy(omega_gpu))
+        print(omega-cp.asnumpy(omega_gpu))
+        raise Exception(f'Results from CPU and GPU are not the same')
 
     # PLOTTING
     if plot:
