@@ -15,7 +15,7 @@ from scipy.stats.kde import gaussian_kde
 from matplotlib.ticker import MaxNLocator
 
 import plot
-import vorticity
+import vorticity_numpy
 
 
 def main():

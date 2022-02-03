@@ -12,12 +12,12 @@ import plot
 
 if __name__ == "__main__":
 
-    plot_color_encoded = True
-    plot_error_line = True
+    plot_color_encoded = False
+    plot_avg_error_polar = True
     loss = 'RMSE'
     my_dpi = 100
 
-    time_range = [0, 1]
+    time_range = [0, 251]
     non_vis_frames = [80, 81, 153, 154]
 
     # frames that we are visualizing
@@ -161,16 +161,14 @@ if __name__ == "__main__":
             fig.clf()
             plt.close(fig)
 
-            exit()
+        print(f'All color encoded plots have been saved to {output_dir}')
 
+    if plot_avg_error_polar:
         # compute average error
         avg_error = np.zeros((len(all_models), len(all_rotations)))
         for i, model in enumerate(all_models):
             for j, rot in enumerate(all_rotations):
-                cur_sum = 0
-                for t in range(len(vis_frames)):
-                    cur_sum += np.sqrt(np.square(ground_truth[j][t] - results_all_models[i, j, t]).mean(axis=None))
-                avg_error[i, j] = cur_sum / len(vis_frames)
+                avg_error[i, j] = np.mean(np.sqrt(np.square(ground_truth[j, :] - results_all_models[i, j, :]).mean(axis=-1)))
 
         # create an figure with 3*4 subplots
         # first row: non-aug
@@ -187,14 +185,14 @@ if __name__ == "__main__":
 
             # to close the ring
             plot_data = list(avg_error[i])
-            plot_data.append(avg_error[i][0])
+            plot_data.append(avg_error[i, 0])
             # degrees needs to be converted to rad
-            axes[i].plot(np.array(all_degrees)/180*np.pi, plot_data)
-            axes[i].set_rlim(0, 3)
+            axes.plot(np.array(all_degrees)/180*np.pi, plot_data)
+            axes.set_rlim(0, 0.6)
 
-            # col titles are the jittering levels
-            for ax, col in zip(axes, all_models):
-                ax.set_title(col, rotation=0, size='x-large')
+            # for ax, col in zip(axes, all_models):
+            #     ax.set_title(col, rotation=0, size='x-large')
+            axes.set_title(model, rotation=0, size='x-large')
 
         fig.tight_layout()
         fig.subplots_adjust(top=0.9)

@@ -15,7 +15,7 @@ from scipy.stats.kde import gaussian_kde
 from matplotlib.ticker import MaxNLocator
 
 import plot
-import vorticity
+import vorticity_numpy
 
 
 # helper function that computes energy from the velocity field
@@ -37,7 +37,7 @@ def compute_vorticity(cur_velocity_field, xx, yy):
     # all_velocity_fields has shape (height, width, 2)
     # curl function takes (dim, num_rows, num_cols)
     udata = np.moveaxis(cur_velocity_field, [0, 1, 2], [1, 2, 0])
-    cur_vorticity = vorticity.curl(udata, xx=xx, yy=yy)
+    cur_vorticity = vorticity_numpy.curl(udata, xx=xx, yy=yy)
 
     return np.array(cur_vorticity)
 
@@ -160,7 +160,7 @@ def main():
 
     if mode == 'velocity':
         if data == 'isotropic_1024':
-            ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/'
+            # ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/'
             # methods = ['memory-piv-net-3', 'memory-piv-net-5', 'LiteFlowNet-en', 'pyramid', 'widim']
             # result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_3/blend_vel_field/',
             #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
@@ -168,9 +168,21 @@ def main():
             #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
             #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
 
+            # for showing augmentations
             methods = ['mpn-5', 'mpn-5-aug']
-            result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/blend_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/original/blend_vel_field/']
+            ground_truth_path = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/',
+                                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot90/true_vel_field/',
+                                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot180/true_vel_field/',
+                                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/true_vel_field/']
+
+            result_dirs = [['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
+                            ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
+                            ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
+                            ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/']]
         elif data == 'rotational':
             ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/amnesia_memory/4000_seeds/no_pe/time_span_5/true_vel_field/'
             methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']

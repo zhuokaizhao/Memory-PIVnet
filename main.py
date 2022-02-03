@@ -7,6 +7,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 # not printing tf warnings
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import sys
@@ -19,6 +20,7 @@ import torch
 import random
 import argparse
 import subprocess
+import cupy as cp
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
@@ -26,13 +28,16 @@ from subprocess import call
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
+from torch.utils.dlpack import to_dlpack
+from torch.utils.dlpack import from_dlpack
+
 import doc
 import models
 import plot
 import tools
 import pair_data
-
-os.environ['CUDA_VISIBLE_DEVICES']='0'
+import vorticity_numpy
+import vorticity_cupy
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
@@ -47,11 +52,11 @@ print ('Current cuda device ', torch.cuda.current_device())
 
 # perform some system checks
 def check_system():
-    if sys.version_info.minor < 8:
-        raise Exception('Python 3.8 is required')
+    if sys.version_info.minor < 9:
+        raise Exception('Python 3.9 is required')
 
-    if not int(str('').join(torch.__version__.split('.')[0:2])) >= 17:
-        raise Exception('At least PyTorch version 1.7.0 is needed')
+    if not int(str('').join(torch.__version__.split('.')[0:2])) >= 110:
+        raise Exception('At least PyTorch version 1.10.0 is needed')
 
 
 # Print iterations progress
@@ -1447,7 +1452,7 @@ def main():
     # dataset property (ours or other existing image-pair datasets)
     parser.add_argument('-d', '--data-type', action='store', nargs=1, dest='data_type')
     # velocity data or vorticity data
-    parser.add_argument('--vorticity', action='store_true', dest='vorticity', default=False)
+    parser.add_argument('--vorticity_data', action='store_true', dest='vorticity_data', default=False)
     # epoch size
     parser.add_argument('-e', '--num-epoch', action='store', nargs=1, dest='num_epoch')
     # batch size
@@ -1523,8 +1528,8 @@ def main():
         # train-related parameters
         num_epoch = int(args.num_epoch[0])
         batch_size = int(args.batch_size[0])
-        vorticity = args.vorticity
-        if vorticity:
+        vorticity_data = args.vorticity_data
+        if vorticity_data:
             target_dim = 1
         else:
             target_dim = 2
@@ -1615,7 +1620,7 @@ def main():
             print(f'\nGPU usage: {device}')
             print(f'netowrk model: {network_model}')
             print(f'dataset type: {data_type}')
-            print(f'vorticity: {vorticity}')
+            print(f'vorticity data: {vorticity_data}')
             print(f'input training data dir: {train_dir}')
             if data_type == 'multi-frame' or data_type == 'one-sided' or data_type == 'image-pair-tiled':
                 print(f'input validation data dir: {val_dir}')
@@ -1703,8 +1708,17 @@ def main():
                             c_prev_time = []
                             cur_label_pred, _, _ = self.model(t-9//2, cur_image_block, h_prev_time, c_prev_time, long_term_memory)
 
-                        # compute loss
-                        loss = self.loss_module(cur_label_pred, cur_label_true)
+                        # compute loss (combination of both velocity and vorticity)
+                        if vorticity_data:
+                            loss = self.loss_module(cur_label_pred, cur_label_true)
+                        else:
+                            vel_loss = self.loss_module(cur_label_pred, cur_label_true)
+                            # convert from torch tensor to cupy via dlpack
+                            vorticity_pred = vorticity_cupy.compute_vorticity(cp.from_dlpack(to_dlpack(cur_label_pred)))
+                            vorticity_true = vorticity_cupy.compute_vorticity(cp.from_dlpack(to_dlpack(cur_label_true)))
+                            vor_loss = self.loss_module(vorticity_pred, vorticity_true)
+                            loss = 0.5 * vel_loss + 0.5 * vor_loss
+
                         if self.lmsi_loss == 'RMSE':
                             loss = torch.sqrt(loss)
 
@@ -2300,7 +2314,7 @@ def main():
                 print(f'\nLoss graph has been saved to {loss_path}')
 
                 # save model as a checkpoint so further training could be resumed
-                if vorticity:
+                if vorticity_data:
                     model_path = os.path.join(model_dir, f'{network_model}_vorticity_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
                 else:
                     model_path = os.path.join(model_dir, f'{network_model}_{data_type}_{time_span}_batch{batch_size}_epoch{i+1}.pt')
@@ -2352,8 +2366,8 @@ def main():
         start_t = int(args.start_t[0])
         end_t = int(args.end_t[0])
         # useful arguments in this mode
-        vorticity = args.vorticity
-        if vorticity:
+        vorticity_data = args.vorticity_data
+        if vorticity_data:
             target_dim = 1
         else:
             target_dim = 2
@@ -2460,7 +2474,7 @@ def main():
                     final_size,
                     device,
                     long_term_memory,
-                    vorticity,
+                    vorticity_data,
                     all_test_label_sequences,
                     blend=True,
                     draw_normal=False,

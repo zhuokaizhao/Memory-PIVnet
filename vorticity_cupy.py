@@ -338,11 +338,12 @@ def cart2pol(x, y):
 
 # used in training loop
 def compute_vorticity(velocity_field):
+    cp.cuda.Device(0).use()
     # velocity_field has shape (batch_size, 2, 64, 64)
-    batch_size = velocity_field.shape[0].cpu()
-    num_rows = velocity_field.shape[2].cpu()
-    num_cols = velocity_field.shape[3].cpu()
-    x, y = list(range(num_cols)), list(range(num_rows))
+    batch_size = velocity_field.shape[0]
+    num_rows = velocity_field.shape[2]
+    num_cols = velocity_field.shape[3]
+    x, y = cp.array(range(num_cols)), cp.array(range(num_rows))
     xx, yy = cp.meshgrid(x, y)
 
     all_vorticity = cp.zeros((velocity_field.shape[0],
@@ -352,10 +353,8 @@ def compute_vorticity(velocity_field):
 
     for i in range(batch_size):
         # curl function takes (dim, num_rows, num_cols)
-        udata = velocity_field[i]
-        omega = curl(udata, xx=xx, yy=yy)
-        print(omega.shape)
-        exit()
+        omega = curl(velocity_field[i], xx=xx, yy=yy)
+        # rearrange omege from (num_rows, num_cols, dim) to (dim, num_rows, num_cols)
         all_vorticity[i] = omega
 
     return all_vorticity

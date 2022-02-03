@@ -15,7 +15,7 @@ from scipy.stats.kde import gaussian_kde
 from matplotlib.ticker import MaxNLocator
 
 import plot
-import vorticity
+import vorticity_numpy
 
 
 # the function read all the original test images
@@ -59,7 +59,7 @@ def compute_vorticity(cur_velocity_field, xx, yy):
     # all_velocity_fields has shape (height, width, 2)
     # curl function takes (dim, num_rows, num_cols)
     udata = np.moveaxis(cur_velocity_field, [0, 1, 2], [1, 2, 0])
-    cur_vorticity = vorticity.curl(udata, xx=xx, yy=yy)
+    cur_vorticity = vorticity_numpy.curl(udata, xx=xx, yy=yy)
 
     return np.array(cur_vorticity)
 
@@ -96,12 +96,14 @@ def main():
             ground_truth_paths = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vel_field/',
                                     '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vel_field/']
 
-            methods = ['memory-piv-net', 'pyramid', 'widim']
-            result_dirs = [['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/'],
-                           ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov).h5'],
-                           ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5',
+            # methods = ['memory-piv-net', 'pyramid', 'widim']
+            # methods = ['pyramid']
+            methods = ['widim']
+            # result_dirs = [['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
+            #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/'],
+                            #  ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5',
+                            #   '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov).h5']]
+            result_dirs = [['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5',
                             '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/reversed_Isotropic_1024/velocity/widim/TR_PIV_MPd(1x16x16_50ov).h5']]
 
 
@@ -154,8 +156,8 @@ def main():
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = True
-        plot_loss_magnitude_heatmap = True
+        plot_color_encoded = False
+        plot_loss_magnitude_heatmap = False
         plot_energy = False
         plot_error_line_plot = True
         plot_result_pdf = False
@@ -272,7 +274,7 @@ def main():
 
 
     # visualizing the results
-    for i in tqdm(range(len(vis_frames))):
+    for i in tqdm(vis_frames):
 
         # color encoding plots
         if plot_color_encoded:
@@ -289,7 +291,7 @@ def main():
                     if order == 'normal':
                         flow_vis, _ = plot.visualize_flow(ground_truth[0][str(i)], max_vel=max_truth)
                     elif order == 'reversed':
-                        flow_vis, _ = plot.visualize_flow(ground_truth[1][str(len(vis_frames)-1-i)], max_vel=max_truth)
+                        flow_vis, _ = plot.visualize_flow(ground_truth[1][str(start_t+end_t-int(i))], max_vel=max_truth)
                     # convert to Image
                     flow_vis_image = Image.fromarray(flow_vis)
                     # show the image
@@ -309,8 +311,8 @@ def main():
                     elif order == 'reversed':
                         Q = axes[k, 0].quiver(y_pos[::skip, ::skip],
                                             x_pos[::skip, ::skip],
-                                            ground_truth[1][str(len(vis_frames)-1-i)][::skip, ::skip, 0]/max_truth,
-                                            -ground_truth[1][str(len(vis_frames)-1-i)][::skip, ::skip, 1]/max_truth,
+                                            ground_truth[1][str(start_t+end_t-int(i))][::skip, ::skip, 0]/max_truth,
+                                            -ground_truth[1][str(start_t+end_t-int(i))][::skip, ::skip, 1]/max_truth,
                                             # scale=4.0,
                                             scale_units='inches')
                     Q._init()
@@ -334,7 +336,7 @@ def main():
                         if order == 'normal':
                             flow_vis, _ = plot.visualize_flow(results_all_methods[k][cur_method][str(i)], max_vel=max_truth)
                         elif order == 'reversed':
-                            flow_vis, _ = plot.visualize_flow(results_all_methods[k][cur_method][str(len(vis_frames)-1-i)], max_vel=max_truth)
+                            flow_vis, _ = plot.visualize_flow(results_all_methods[k][cur_method][str(start_t+end_t-int(i))], max_vel=max_truth)
 
                         # convert to Image
                         flow_vis_image = Image.fromarray(flow_vis)
@@ -354,8 +356,8 @@ def main():
                         elif order == 'reversed':
                             Q = axes[k, j+1].quiver(y_pos[::skip, ::skip],
                                                     x_pos[::skip, ::skip],
-                                                    -1*results_all_methods[k][cur_method][str(len(vis_frames)-1-i)][::skip, ::skip, 0]/max_truth,
-                                                    -1*-1*results_all_methods[k][cur_method][str(len(vis_frames)-1-i)][::skip, ::skip, 1]/max_truth,
+                                                    -1*results_all_methods[k][cur_method][str(start_t+end_t-int(i))][::skip, ::skip, 0]/max_truth,
+                                                    -1*-1*results_all_methods[k][cur_method][str(start_t+end_t-int(i))][::skip, ::skip, 1]/max_truth,
                                                     scale_units='inches')
                         Q._init()
                         assert isinstance(Q.scale, float)
@@ -382,11 +384,11 @@ def main():
                             cur_loss = np.sqrt(np.square(ground_truth[k][str(i)] - results_all_methods[k][cur_method][str(i)]).mean(axis=None))
                     elif order == 'reversed':
                         if loss == 'MAE':
-                            cur_loss = np.abs(ground_truth[k][str(len(vis_frames)-1-i)] - results_all_methods[k][cur_method][str(len(vis_frames)-1-i)]).mean(axis=None)
+                            cur_loss = np.abs(ground_truth[k][str(start_t+end_t-int(i))] - results_all_methods[k][cur_method][str(start_t+end_t-int(i))]).mean(axis=None)
                         elif loss == 'MSE':
-                            cur_loss = np.square(ground_truth[k][str(len(vis_frames)-1-i)] - results_all_methods[k][cur_method][str(len(vis_frames)-1-i)]).mean(axis=None)
+                            cur_loss = np.square(ground_truth[k][str(start_t+end_t-int(i))] - results_all_methods[k][cur_method][str(start_t+end_t-int(i))]).mean(axis=None)
                         elif loss == 'RMSE':
-                            cur_loss = np.sqrt(np.square(ground_truth[k][str(len(vis_frames)-1-i)] - results_all_methods[k][cur_method][str(len(vis_frames)-1-i)]).mean(axis=None))
+                            cur_loss = np.sqrt(np.square(ground_truth[k][str(start_t+end_t-int(i))] - results_all_methods[k][cur_method][str(start_t+end_t-int(i))]).mean(axis=None))
 
 
                     if mode == 'velocity':
@@ -424,13 +426,13 @@ def main():
 
                     elif order == 'reversed':
                         if loss == 'MAE':
-                            errors_all_methods[k][cur_method].append(np.abs(ground_truth[k][str(len(vis_frames)-1-i)] - results_all_methods[k][cur_method][str(len(vis_frames)-1-i)]).mean(axis=None))
+                            errors_all_methods[k][cur_method].append(np.abs(ground_truth[k][str(start_t+end_t-int(i))] - results_all_methods[k][cur_method][str(start_t+end_t-int(i))]).mean(axis=None))
                             # energy_errors_all_methods[cur_method].append(np.abs(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None))
                         elif loss == 'MSE':
-                            errors_all_methods[k][cur_method].append(np.square(ground_truth[k][str(len(vis_frames)-1-i)] - results_all_methods[k][cur_method][str(len(vis_frames)-1-i)]).mean(axis=None))
+                            errors_all_methods[k][cur_method].append(np.square(ground_truth[k][str(start_t+end_t-int(i))] - results_all_methods[k][cur_method][str(start_t+end_t-int(i))]).mean(axis=None))
                             # energy_errors_all_methods[cur_method].append(np.square(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None))
                         elif loss == 'RMSE':
-                            errors_all_methods[k][cur_method].append(np.sqrt(np.square(ground_truth[k][str(len(vis_frames)-1-i)] - results_all_methods[k][cur_method][str(len(vis_frames)-1-i)]).mean(axis=None)))
+                            errors_all_methods[k][cur_method].append(np.sqrt(np.square(ground_truth[k][str(start_t+end_t-int(i))] - results_all_methods[k][cur_method][str(start_t+end_t-int(i))]).mean(axis=None)))
                             # energy_errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None)))
 
             # cur_test_image = all_test_images[i]
@@ -443,10 +445,13 @@ def main():
 
         # error line plot ordering
         # methods_order = ['LiteFlowNet-en', 'memory-piv-net', 'widim', 'pyramid']
-        # colors = ['blue', 'orange', 'red', 'green']
+        colors = ['blue', 'orange', 'green']
+        styles = ['solid', 'dashed']
         for k, order in enumerate(['normal', 'reversed']):
-            for cur_method in methods:
-                ax.plot(vis_frames, errors_all_methods[k][cur_method], label=f'{cur_method} {order}')
+            cur_style = styles[k]
+            for m, cur_method in enumerate(methods):
+                color = colors[m]
+                ax.plot(vis_frames, errors_all_methods[k][cur_method], label=f'{cur_method} {order}', linestyle=cur_style, c=color)
                 # print average result
                 cur_avg_loss = np.nanmean(errors_all_methods[k][cur_method])
                 print(f'{order} {cur_method} {mode} {loss} = {cur_avg_loss}')
