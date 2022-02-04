@@ -145,7 +145,6 @@ def get_duidxj_tensor(udata, dx=1., dy=1., dz=1., xyz_orientations=np.asarray([1
             1]  # +dy is the column up. np gradient computes difference by going DOWN in the column, which is the opposite
         duydx = np.gradient(uy, dx, axis=1) * xyz_orientations[0]
         duydy = np.gradient(uy, dy, axis=0) * xyz_orientations[1]
-        print(duxdx)
         sij = np.zeros((nrows, ncols, duration, dim, dim))
         sij[..., 0, 0] = duxdx
         sij[..., 0, 1] = duxdy

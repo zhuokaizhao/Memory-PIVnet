@@ -13,7 +13,7 @@ if __name__=='__main__':
 
     # if we want to actually plot
     use_numpy = True
-    use_cupy = False
+    use_cupy = True
     use_torch = True
     plot = False
 
@@ -106,8 +106,8 @@ if __name__=='__main__':
         # Compute vorticity
         omega_torch = vorticity_torch.curl(udata, xx=xx, yy=yy)
         torch_end_time = time.time()
-        print('Vorticity shape', omega_cupy.shape)
-        print(f'Cupy on GPU took {torch_end_time-torch_start_time} seconds\n')
+        print('Vorticity shape', omega_torch.shape)
+        print(f'PyTorch on GPU took {torch_end_time-torch_start_time} seconds\n')
 
         if not np.allclose(omega, omega_torch.cpu().numpy()):
             print(omega.shape)
@@ -120,7 +120,7 @@ if __name__=='__main__':
         # plot
         if plot:
             fig, ax = plt.subplots(figsize=(8, 8))
-            plt.pcolormesh(xx.cpu().numpy(), yy.cpu().numpy(), omega[..., 0].cpu().numpy(), cmap='bwr', vmin=-3e-3, vmax=3e-3)
+            plt.pcolormesh(xx.cpu().numpy(), yy.cpu().numpy(), omega_torch[..., 0].cpu().numpy(), cmap='bwr', vmin=-3e-3, vmax=3e-3)
             plt.colorbar(label='$\omega_z$')
             plt.gca().set_aspect('equal')
             inc = 4

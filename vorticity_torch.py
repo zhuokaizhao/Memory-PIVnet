@@ -141,18 +141,17 @@ def get_duidxj_tensor(udata, dx=1., dy=1., dz=1., xyz_orientations=torch.tensor(
             ux = ux.reshape((ux.shape[0], ux.shape[1], duration))
             uy = uy.reshape((uy.shape[0], uy.shape[1], duration))
 
-        duxdx = torch.gradient(ux[:, :, 0], spacing=dx, axis=1) * xyz_orientations[0]
-        print(duxdx)
-        exit()
+
+        duxdx = torch.gradient(ux[:, :, 0], spacing=dx, axis=1)[0] * xyz_orientations[0]
         # +dy is the column up. torch gradient computes difference by going DOWN in the column, which is the opposite
-        duxdy = torch.gradient(ux[:, :, 0], spacing=dy, axis=0) * xyz_orientations[1]
-        duydx = torch.gradient(uy[:, :, 0], spacing=dx, axis=1) * xyz_orientations[0]
-        duydy = torch.gradient(uy[:, :, 0], spacing=dy, axis=0) * xyz_orientations[1]
+        duxdy = torch.gradient(ux[:, :, 0], spacing=dy, axis=0)[0] * xyz_orientations[1]
+        duydx = torch.gradient(uy[:, :, 0], spacing=dx, axis=1)[0] * xyz_orientations[0]
+        duydy = torch.gradient(uy[:, :, 0], spacing=dy, axis=0)[0] * xyz_orientations[1]
         sij = torch.zeros((nrows, ncols, duration, dim, dim))
-        sij[..., 0, 0] = duxdx
-        sij[..., 0, 1] = duxdy
-        sij[..., 1, 0] = duydx
-        sij[..., 1, 1] = duydy
+        sij[..., 0, 0] = duxdx[:, :, None]
+        sij[..., 0, 1] = duxdy[:, :, None]
+        sij[..., 1, 0] = duydx[:, :, None]
+        sij[..., 1, 1] = duydy[:, :, None]
     elif dim == 3:
         ux, uy, uz = udata[0, ...], udata[1, ...], udata[2, ...]
         try:
