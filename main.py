@@ -38,6 +38,7 @@ import tools
 import pair_data
 import vorticity_numpy
 import vorticity_cupy
+import vorticity_torch
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
@@ -1714,10 +1715,10 @@ def main():
                         else:
                             vel_loss = self.loss_module(cur_label_pred, cur_label_true)
                             # convert from torch tensor to cupy via dlpack
-                            vorticity_pred = vorticity_cupy.compute_vorticity(cp.from_dlpack(to_dlpack(cur_label_pred)))
-                            vorticity_true = vorticity_cupy.compute_vorticity(cp.from_dlpack(to_dlpack(cur_label_true)))
+                            vorticity_pred = vorticity_torch.compute_vorticity(cur_label_pred, device=device)
+                            vorticity_true = vorticity_torch.compute_vorticity(cur_label_true, device=device)
                             vor_loss = self.loss_module(vorticity_pred, vorticity_true)
-                            loss = 0.5 * vel_loss + 0.5 * vor_loss
+                            loss = vel_loss + vor_loss
 
                         if self.lmsi_loss == 'RMSE':
                             loss = torch.sqrt(loss)

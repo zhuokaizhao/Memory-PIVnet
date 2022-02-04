@@ -339,13 +339,15 @@ def cart2pol(x, y):
 
 
 # used in training loop
-def compute_vorticity(velocity_field):
+def compute_vorticity(velocity_field, device):
     # velocity_field has shape (batch_size, 2, 64, 64)
     batch_size = velocity_field.shape[0]
     num_rows = velocity_field.shape[2]
     num_cols = velocity_field.shape[3]
-    x, y = torch.array(range(num_cols)), torch.array(range(num_rows))
-    xx, yy = torch.meshgrid(x, y)
+    x, y = torch.tensor(range(num_cols)), torch.tensor(range(num_rows))
+    xx, yy = torch.meshgrid(x, y, indexing='xy')
+    xx = xx.double().to(device)
+    yy = yy.double().to(device)
 
     all_vorticity = torch.zeros((velocity_field.shape[0],
                                 1,
@@ -355,6 +357,7 @@ def compute_vorticity(velocity_field):
     for i in range(batch_size):
         # curl function takes (dim, num_rows, num_cols)
         omega = curl(velocity_field[i], xx=xx, yy=yy)
+        omega = torch.permute(omega, (2, 0, 1))
         # rearrange omege from (num_rows, num_cols, dim) to (dim, num_rows, num_cols)
         all_vorticity[i] = omega
 
