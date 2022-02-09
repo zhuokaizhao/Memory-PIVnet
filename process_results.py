@@ -286,28 +286,41 @@ def main():
         truth_types = [mode]
 
     for cur_type in truth_types:
-        all_x = []
-        all_y = []
-        all_x_rms = []
-        all_y_rms = []
+        if cur_type == 'velocity':
+            all_x = []
+            all_y = []
+            all_x_rms = []
+            all_y_rms = []
+        if cur_type == 'vorticity':
+            all_v = []
+            all_v_rms = []
+
         # type of ground truth
         ground_truth[cur_type] = {}
         for t in range(time_range[0], time_range[1]+1):
             cur_path = os.path.join(ground_true_path[cur_type], f'true_{cur_type}_{t}.npz')
             ground_truth[cur_type][str(t)] = np.load(cur_path)[f'{cur_type}']
             # for sanity check use
-            all_x.append(np.mean(np.abs(ground_truth[cur_type][str(t)][:, :, 0])))
-            all_y.append(np.mean(np.abs(ground_truth[cur_type][str(t)][:, :, 1])))
-            all_x_rms.append(np.sqrt(np.sum(ground_truth[cur_type][str(t)][:, :, 0]**2) / (256 * 256)))
-            all_y_rms.append(np.sqrt(np.sum(ground_truth[cur_type][str(t)][:, :, 1]**2) / (256 * 256)))
+            if cur_type == 'velocity':
+                all_x.append(np.mean(np.abs(ground_truth[cur_type][str(t)][:, :, 0])))
+                all_y.append(np.mean(np.abs(ground_truth[cur_type][str(t)][:, :, 1])))
+                all_x_rms.append(np.sqrt(np.sum(ground_truth[cur_type][str(t)][:, :, 0]**2) / (256 * 256)))
+                all_y_rms.append(np.sqrt(np.sum(ground_truth[cur_type][str(t)][:, :, 1]**2) / (256 * 256)))
+            elif cur_type == 'vorticity':
+                all_v.append(np.mean(np.abs(ground_truth[cur_type][str(t)][:, :, 0])))
+                all_v_rms.append(np.sqrt(np.sum(ground_truth[cur_type][str(t)][:, :, 0]**2) / (256 * 256)))
 
-        print(f'Average {cur_type} in x is {np.mean(all_x)} pixels/frame')
-        print(f'Average {cur_type} in y is {np.mean(all_y)} pixels/frame')
-        print(f'Average RMS {cur_type} in x is {np.mean(all_x_rms)} pixels/frame')
-        print(f'Average RMS {cur_type} in y is {np.mean(all_y_rms)} pixels/frame')
+        if cur_type == 'velocity':
+            print(f'Average {cur_type} in x is {np.mean(all_x)} pixels/frame')
+            print(f'Average {cur_type} in y is {np.mean(all_y)} pixels/frame')
+            print(f'Average RMS {cur_type} in x is {np.mean(all_x_rms)} pixels/frame')
+            print(f'Average RMS {cur_type} in y is {np.mean(all_y_rms)} pixels/frame')
+        elif cur_type == 'vorticity':
+            print(f'Average {cur_type} is {np.mean(all_v)}')
+            print(f'Average RMS {cur_type} is {np.mean(all_v_rms)}')
+
         print(f'Loaded ground truth {cur_type} has shape ({len(ground_truth[cur_type])}, {ground_truth[cur_type][str(time_range[0])].shape})')
 
-    exit()
     # load results from each method
     if mode == 'both':
         result_types = ['velocity', 'vorticity']
