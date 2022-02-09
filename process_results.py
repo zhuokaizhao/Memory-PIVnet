@@ -429,13 +429,8 @@ def main():
     # exit()
 
     # max velocity from ground truth is useful for normalization
-    if mode == 'velocity':
-        max_truth = 3
-        min_truth = -3
-    elif mode == 'vorticity':
-        max_truth = 1
-        min_truth = -1
-
+    # format: [min, max]
+    plot_data_range = {'velocity': [-3, 3], 'vorticity': [-1, 1]}
 
     # visualizing the results
     for i in tqdm(vis_frames):
@@ -583,7 +578,7 @@ def main():
 
                 # visualize ground truth
                 if cur_type == 'velocity':
-                    flow_vis, _ = plot.visualize_flow(ground_truth[cur_type][str(i)], max_vel=max_truth)
+                    flow_vis, _ = plot.visualize_flow(ground_truth[cur_type][str(i)], max_vel=plot_data_range[cur_type][1])
                     # convert to Image
                     flow_vis_image = Image.fromarray(flow_vis)
                     # show the image
@@ -595,8 +590,8 @@ def main():
                     y_pos, x_pos = np.meshgrid(x, y)
                     Q = axes[0].quiver(y_pos[::skip, ::skip],
                                         x_pos[::skip, ::skip],
-                                        results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 0]/max_truth,
-                                        -results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 1]/max_truth,
+                                        results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 0]/plot_data_range[cur_type][1],
+                                        -results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 1]/plot_data_range[cur_type][1],
                                         # scale=4.0,
                                         scale_units='inches')
                     Q._init()
@@ -607,18 +602,19 @@ def main():
 
                 elif cur_type == 'vorticity':
                     # vorticity simply uses a heatmap-like color encoding
-                    axes[0].imshow(ground_truth[cur_type][str(i)], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('bwr'))
+                    axes[0].imshow(ground_truth[cur_type][str(i)], vmin=plot_data_range[cur_type][0], vmax=plot_data_range[cur_type][1], cmap=plt.get_cmap('bwr'))
                     axes[0].set_title(f'Ground truth')
                     axes[0].set_xlabel('x')
                     axes[0].set_ylabel('y')
 
                 # for each method
                 j = 0
-                for cur_method in enumerate(methods):
+                for cur_method in methods:
                     if cur_type == 'velocity':
                         if 'vor' in cur_method:
                             continue
-                        flow_vis, _ = plot.visualize_flow(results_all_methods[cur_type][cur_method][str(i)], max_vel=max_truth)
+
+                        flow_vis, _ = plot.visualize_flow(results_all_methods[cur_type][cur_method][str(i)], max_vel=plot_data_range[cur_type][1])
                         # convert to Image
                         flow_vis_image = Image.fromarray(flow_vis)
                         # show the image
@@ -630,8 +626,8 @@ def main():
                         y_pos, x_pos = np.meshgrid(x, y)
                         Q = axes[j].quiver(y_pos[::skip, ::skip],
                                             x_pos[::skip, ::skip],
-                                            results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 0]/max_truth,
-                                            -results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 1]/max_truth,
+                                            results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 0]/plot_data_range[cur_type][1],
+                                            -results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 1]/plot_data_range[cur_type][1],
                                             # scale=4.0,
                                             scale_units='inches')
                         Q._init()
@@ -642,18 +638,18 @@ def main():
 
                     elif cur_type == 'vorticity':
                         # vorticity simply uses a heatmap-like color encoding
-                        axes[j+1].imshow(results_all_methods[cur_type][cur_method][str(i)], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('bwr'))
+                        axes[j+1].imshow(results_all_methods[cur_type][cur_method][str(i)], vmin=plot_data_range[cur_type][0], vmax=plot_data_range[cur_type][1], cmap=plt.get_cmap('bwr'))
                         axes[j+1].set_title(f'{cur_method}')
                         axes[j+1].set_xlabel('x')
                         axes[j+1].set_ylabel('y')
 
                     # label error
                     if loss == 'MAE':
-                        cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None)
+                        cur_loss = np.abs(ground_truth[cur_type][str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None)
                     elif loss == 'MSE':
-                        cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None)
+                        cur_loss = np.square(ground_truth[cur_type][str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None)
                     elif loss == 'RMSE':
-                        cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None))
+                        cur_loss = np.sqrt(np.square(ground_truth[cur_type][str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None))
 
                     if cur_type == 'velocity':
                         axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
@@ -675,6 +671,7 @@ def main():
                 fig.clf()
                 plt.close(fig)
                 # print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
+                exit()
 
 
         # loss heatmap
