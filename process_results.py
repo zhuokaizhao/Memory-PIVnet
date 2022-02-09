@@ -170,10 +170,10 @@ def main():
 
             # for showing augmentations
             methods = ['mpn-5', 'mpn-5-aug']
-            vel_true_path = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/',
-                                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot90/true_vel_field/',
-                                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot180/true_vel_field/',
-                                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/true_vel_field/']
+            ground_truth_path = {'velocity': ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/',
+                                              '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot90/true_vel_field/',
+                                              '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot180/true_vel_field/',
+                                              '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/true_vel_field/']}
 
             result_dirs = [['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
                             '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
@@ -184,7 +184,7 @@ def main():
                             ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
                             '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/']]
         elif data == 'rotational':
-            vel_true_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/amnesia_memory/4000_seeds/no_pe/time_span_5/true_vel_field/'
+            ground_truth_path = {'velocity': '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/amnesia_memory/4000_seeds/no_pe/time_span_5/true_vel_field/'}
             methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
             result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/amnesia_memory/4000_seeds/no_pe/time_span_5/blend_vel_field/',
                             '/home/zhuokai/Desktop/UChicago/Research/PIV-LiteFlowNet-en-Pytorch/output/Rotational/4000_seeds/lfn_vel_field/',
@@ -195,7 +195,7 @@ def main():
 
     # when vorticity, still velocity results is loaded except ground truth and memory-piv-net
     elif mode == 'vorticity':
-        vor_true_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vor_field/'
+        ground_truth_path = {'vorticity': '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/amnesia_memory/50000_seeds/no_pe/time_span_5/true_vor_field/'}
         # list of methods
         methods = ['memory-piv-net', 'memory-piv-net-velocity', 'pyramid', 'widim']
         result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/amnesia_memory/50000_seeds/no_pe/time_span_5/blend_vor_field/',
@@ -205,8 +205,8 @@ def main():
 
     # when we are evaluating both velocity and vorticity
     elif mode == 'both':
-        vel_true_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/'
-        vor_true_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vor_field/'
+        ground_true_path = {'velocity': '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/',
+                            'vorticity': '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vor_field/'}
 
         # list of methods
         methods = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'pyramid']
@@ -226,9 +226,12 @@ def main():
 
     # start and end time (both inclusive)
     time_range = [start_t, end_t]
-    # frame 81, 153, 154 have broken ground truth
-    non_vis_frames = [80, 81, 153, 154]
-    img_size = 256
+    if data == 'isotropic_1024' or data == 'rotational':
+        # frame 81, 153, 154 have broken ground truth for isotropic data
+        non_vis_frames = [80, 81, 153, 154]
+        img_size = 256
+    else:
+        non_vis_frames = []
 
     # frames that we are visualizing
     vis_frames = list(range(time_range[0], time_range[1]+1))
@@ -270,16 +273,11 @@ def main():
 
 
     # loaded velocity fields
-    ground_truth_vel = {}
-    ground_truth_vor = {}
-    vel_results_all_methods = {}
-    vor_results_all_methods = {}
+    ground_truth = {}
+    results_all_methods = {}
     if plot_error_line_plot:
         errors_all_methods = {}
         energy_errors_all_methods = {}
-
-    if plot_scatter:
-        all_truth_error_pairs = []
 
     # load ground truth
     if mode == 'both':
@@ -292,99 +290,113 @@ def main():
         all_y = []
         all_x_rms = []
         all_y_rms = []
+        # type of ground truth
+        ground_truth[cur_type] = {}
         for t in range(time_range[0], time_range[1]+1):
-            if cur_type == 'velocity':
-                cur_path = os.path.join(vel_true_path, f'true_{mode}_{t}.npz')
-                ground_truth_vel[str(t)] = np.load(cur_path)[f'{mode}']
-                # for sanity check use
-                all_x.append(np.mean(np.abs(ground_truth_vel[str(t)][:, :, 0])))
-                all_y.append(np.mean(np.abs(ground_truth_vel[str(t)][:, :, 1])))
-                all_x_rms.append(np.sqrt(np.sum(ground_truth_vel[str(t)][:, :, 0]**2) / (256 * 256)))
-                all_y_rms.append(np.sqrt(np.sum(ground_truth_vel[str(t)][:, :, 1]**2) / (256 * 256)))
-            elif cur_type == 'vorticity':
-                cur_path = os.path.join(vor_true_path, f'true_{mode}_{t}.npz')
-                ground_truth_vor[str(t)] = np.load(cur_path)[f'{mode}']
-                # for sanity check use
-                all_x.append(np.mean(np.abs(ground_truth_vor[str(t)][:, :, 0])))
-                all_y.append(np.mean(np.abs(ground_truth_vor[str(t)][:, :, 1])))
-                all_x_rms.append(np.sqrt(np.sum(ground_truth_vor[str(t)][:, :, 0]**2) / (256 * 256)))
-                all_y_rms.append(np.sqrt(np.sum(ground_truth_vor[str(t)][:, :, 1]**2) / (256 * 256)))
+            cur_path = os.path.join(ground_true_path[cur_type], f'true_{cur_type}_{t}.npz')
+            ground_truth[cur_type][str(t)] = np.load(cur_path)[f'{cur_type}']
+            # for sanity check use
+            all_x.append(np.mean(np.abs(ground_truth[cur_type][str(t)][:, :, 0])))
+            all_y.append(np.mean(np.abs(ground_truth[cur_type][str(t)][:, :, 1])))
+            all_x_rms.append(np.sqrt(np.sum(ground_truth[cur_type][str(t)][:, :, 0]**2) / (256 * 256)))
+            all_y_rms.append(np.sqrt(np.sum(ground_truth[cur_type][str(t)][:, :, 1]**2) / (256 * 256)))
 
+        print(f'Average {cur_type} in x is {np.mean(all_x)} pixels/frame')
+        print(f'Average {cur_type} in y is {np.mean(all_y)} pixels/frame')
+        print(f'Average RMS {cur_type} in x is {np.mean(all_x_rms)} pixels/frame')
+        print(f'Average RMS {cur_type} in y is {np.mean(all_y_rms)} pixels/frame')
+        print(f'Loaded ground truth {cur_type} has shape ({len(ground_truth[cur_type])}, {ground_truth[cur_type][str(time_range[0])].shape})')
 
-        if cur_type == 'velocity':
-            print(f'Average velocity in x is {np.mean(all_x)} pixels/frame')
-            print(f'Average velocity in y is {np.mean(all_y)} pixels/frame')
-            print(f'Average RMS velocity in x is {np.mean(all_x_rms)} pixels/frame')
-            print(f'Average RMS velocity in y is {np.mean(all_y_rms)} pixels/frame')
-        elif cur_type == 'vorticity':
-            print(f'Average vorticity in x is {np.mean(all_x)} pixels/frame')
-            print(f'Average vorticity in y is {np.mean(all_y)} pixels/frame')
-            print(f'Average RMS vorticity in x is {np.mean(all_x_rms)} pixels/frame')
-            print(f'Average RMS vorticity in y is {np.mean(all_y_rms)} pixels/frame')
+    exit()
+    # load results from each method
+    if mode == 'both':
+        result_types = ['velocity', 'vorticity']
+    else:
+        result_types = [mode]
 
-    # when computing vorticity, xx and yy grids are required
+    # when computing vorticity from velocity, xx and yy grids are required
     if mode == 'vorticity' or mode == 'both':
         with h5py.File(result_dirs[2], mode='r') as f:
             xx, yy = f['x'][...], f['y'][...]
 
-    print(f'Loaded ground truth {mode} has shape ({len(ground_truth)}, {ground_truth[str(time_range[0])].shape})')
-
-
-    # load results from each method
-    for i, cur_method in enumerate(methods):
-
-        results_all_methods[cur_method] = {}
+    for cur_type in result_types:
+        results_all_methods[cur_type] = {}
         if plot_error_line_plot:
-            errors_all_methods[cur_method] = []
-            energy_errors_all_methods[cur_method] = []
+            errors_all_methods[cur_type] = {}
+            energy_errors_all_methods[cur_type] = {}
 
-        if 'memory-piv-net' in cur_method or 'mpn' in cur_method:
-            # load the velocity fields of the specified time range
-            for t in range(time_range[0], time_range[1]+1):
-                cur_path = os.path.join(result_dirs[i], f'test_{mode}_blend_{t}.npz')
-                results_all_methods[cur_method][str(t)] = np.load(cur_path)[f'{mode}']
+        for i, cur_method in enumerate(methods):
+            if plot_error_line_plot:
+                errors_all_methods[cur_type][cur_method] = []
+                energy_errors_all_methods[cur_type][cur_method] = []
 
-        if cur_method == 'memory-piv-net-velocity':
+            # load from memory-piv-net and its variants
+            if ('memory-piv-net' in cur_method or 'mpn' in cur_method) and not 'vor' in cur_method:
+                # if we are loading velocities
+                if cur_type == 'velocity':
+                    # load the velocity fields of the specified time range
+                    for t in range(time_range[0], time_range[1]+1):
+                        cur_path = os.path.join(result_dirs[i], f'test_{cur_type}_blend_{t}.npz')
+                        results_all_methods[cur_type][cur_method][str(t)] = np.load(cur_path)[f'{cur_type}']
 
-            # load the velocity fields of the specified time range
-            for t in range(time_range[0], time_range[1]+1):
-                cur_path = os.path.join(result_dirs[i], f'test_velocity_blend_{t}.npz')
-                cur_velocity = np.load(cur_path)['velocity']
+                # if we are loading vorticities (needs to be computed from velocity)
+                elif cur_type == 'vorticity':
+                    # compute the vorticity fields of the specified time range
+                    for t in range(time_range[0], time_range[1]+1):
+                        results_all_methods[cur_type][cur_method][str(t)] = compute_vorticity(results_all_methods['velocity'][cur_method][str(t)], xx, yy)
 
-                # compute vorticity from it
-                results_all_methods[cur_method][str(t)] = compute_vorticity(cur_velocity, xx, yy)
+            # load from memory-piv-net that was trained on vorticity (which produces vorticity directly)
+            if ('memory-piv-net' in cur_method or 'mpn' in cur_method) and 'vor' in cur_method:
+                # velocity cannot be computed from vorticity
+                if cur_type == 'velocity':
+                    continue
+                elif cur_type == 'vorticity':
+                    for t in range(time_range[0], time_range[1]+1):
+                        cur_path = os.path.join(result_dirs[i], f'test_{cur_type}_blend_{t}.npz')
+                        results_all_methods[cur_type][cur_method][str(t)] = np.load(cur_path)[f'{cur_type}']
 
-        if cur_method == 'LiteFlowNet-en':
-            # load the velocity fields of the specified time range
-            for t in range(time_range[0], time_range[1]+1):
-                cur_path = os.path.join(result_dirs[i], f'lfn_{mode}_{t}.npz')
-                results_all_methods[cur_method][str(t)] = np.load(cur_path)[f'{mode}']
+            # liteflownet result
+            if cur_method == 'LiteFlowNet-en':
+                if cur_type == 'velocity':
+                    # load the velocity fields of the specified time range
+                    for t in range(time_range[0], time_range[1]+1):
+                        cur_path = os.path.join(result_dirs[i], f'lfn_{mode}_{t}.npz')
+                        results_all_methods[cur_method][str(t)] = np.load(cur_path)[f'{mode}']
+                if cur_type == 'vorticity':
+                    # compute the vorticity fields of the specified time range
+                    for t in range(time_range[0], time_range[1]+1):
+                        results_all_methods[cur_type][cur_method][str(t)] = compute_vorticity(results_all_methods['velocity'][cur_method][str(t)], xx, yy)
 
-        # for pyramid and standar methods
-        elif cur_method == 'pyramid' or cur_method == 'widim':
-            cur_path = result_dirs[i]
-            with h5py.File(cur_path, mode='r') as f:
-                # print('The h5 file contains ', list(f.keys()))
-                ux, uy = f['ux'][...], f['uy'][...]
+            # for pyramid and standar methods
+            elif cur_method == 'pyramid' or cur_method == 'widim':
+                cur_path = result_dirs[i]
+                with h5py.File(cur_path, mode='r') as f:
+                    # print('The h5 file contains ', list(f.keys()))
+                    ux, uy = f['ux'][...], f['uy'][...]
 
-            velocity = np.stack((ux, uy))
-            velocity = np.moveaxis(velocity, [0, 1, 2, 3], [3, 1, 2, 0])
+                velocity = np.stack((ux, uy))
+                velocity = np.moveaxis(velocity, [0, 1, 2, 3], [3, 1, 2, 0])
 
-            # upsampling pyramid or cc results to full image resolution by duplicating
-            ratio = img_size // velocity.shape[1]
-            for t in range(time_range[0], time_range[1]+1):
-                if mode == 'velocity':
-                    cur_velocity = velocity[t].repeat(ratio, axis=0).repeat(ratio, axis=1)
-                    results_all_methods[cur_method][str(t)] = cur_velocity
-                elif mode == 'vorticity':
-                    # compute vorticity from velocity
-                    cur_vorticity = compute_vorticity(velocity[t], xx, yy)
-                    results_all_methods[cur_method][str(t)] = cur_vorticity.repeat(ratio, axis=0).repeat(ratio, axis=1)
+                # upsampling pyramid or cc results to full image resolution by duplicating
+                ratio = img_size // velocity.shape[1]
+                for t in range(time_range[0], time_range[1]+1):
+                    if cur_type == 'velocity':
+                        cur_velocity = velocity[t].repeat(ratio, axis=0).repeat(ratio, axis=1)
+                        results_all_methods[cur_type][cur_method][str(t)] = cur_velocity
+                    elif cur_type == 'vorticity':
+                        # compute vorticity from velocity
+                        cur_vorticity = compute_vorticity(velocity[t], xx, yy)
+                        results_all_methods[cur_type][cur_method][str(t)] = cur_vorticity.repeat(ratio, axis=0).repeat(ratio, axis=1)
 
     # print all the shapes
-    for i, cur_method in enumerate(methods):
-        print(f'Loaded {cur_method} {mode} has shape ({len(results_all_methods[cur_method])}, {results_all_methods[cur_method][str(time_range[0])].shape})')
+    for cur_type in result_types:
+        for i, cur_method in enumerate(methods):
+            if 'vor' in cur_method and cur_type == 'velocity':
+                continue
 
+            print(f'Loaded {cur_method} {cur_type} has shape ({len(results_all_methods[cur_type][cur_method])}, {results_all_methods[cur_type][cur_method][str(time_range[0])].shape})')
+
+    exit()
     # save npz if needed
     # result_path = os.path.join(output_dir, 'vorticity_slice.npz')
     # np.savez(result_path,

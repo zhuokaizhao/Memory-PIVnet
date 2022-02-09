@@ -346,17 +346,13 @@ def compute_vorticity(velocity_field):
     xx, yy = np.meshgrid(x, y)
 
     all_vorticity = np.zeros((velocity_field.shape[0],
-                                1,
                                 velocity_field.shape[2],
-                                velocity_field.shape[3]))
+                                velocity_field.shape[3],
+                                1))
 
     for i in range(batch_size):
         # curl function takes (dim, num_rows, num_cols)
-        udata = velocity_field[i]
-        omega = curl(udata, xx=xx, yy=yy)
-        print(omega.shape)
-        exit()
-        all_vorticity[i] = omega
+        all_vorticity[i] = curl(udata, xx=xx, yy=yy)
 
     return all_vorticity
 
