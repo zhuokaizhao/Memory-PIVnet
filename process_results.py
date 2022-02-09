@@ -211,7 +211,7 @@ def main():
         # list of methods
         methods = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'pyramid']
 
-        result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
+        result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/blend_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vor_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/combined_loss/blend_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5']
@@ -310,6 +310,8 @@ def main():
                 all_v.append(np.mean(np.abs(ground_truth[cur_type][str(t)][:, :, 0])))
                 all_v_rms.append(np.sqrt(np.sum(ground_truth[cur_type][str(t)][:, :, 0]**2) / (256 * 256)))
 
+        print(f'\nLoaded ground truth {cur_type} has shape ({len(ground_truth[cur_type])}, {ground_truth[cur_type][str(time_range[0])].shape})')
+
         if cur_type == 'velocity':
             print(f'Average {cur_type} in x is {np.mean(all_x)} pixels/frame')
             print(f'Average {cur_type} in y is {np.mean(all_y)} pixels/frame')
@@ -319,8 +321,6 @@ def main():
             print(f'Average {cur_type} is {np.mean(all_v)}')
             print(f'Average RMS {cur_type} is {np.mean(all_v_rms)}')
 
-        print(f'Loaded ground truth {cur_type} has shape ({len(ground_truth[cur_type])}, {ground_truth[cur_type][str(time_range[0])].shape})')
-
     # load results from each method
     if mode == 'both':
         result_types = ['velocity', 'vorticity']
@@ -329,7 +329,7 @@ def main():
 
     # when computing vorticity from velocity, xx and yy grids are required
     if mode == 'vorticity' or mode == 'both':
-        with h5py.File(result_dirs[2], mode='r') as f:
+        with h5py.File(result_dirs[3], mode='r') as f:
             xx, yy = f['x'][...], f['y'][...]
 
     for cur_type in result_types:
@@ -339,9 +339,7 @@ def main():
             energy_errors_all_methods[cur_type] = {}
 
         for i, cur_method in enumerate(methods):
-            if plot_error_line_plot:
-                errors_all_methods[cur_type][cur_method] = []
-                energy_errors_all_methods[cur_type][cur_method] = []
+            results_all_methods[cur_type][cur_method] = {}
 
             # load from memory-piv-net and its variants
             if ('memory-piv-net' in cur_method or 'mpn' in cur_method) and not 'vor' in cur_method:
@@ -403,13 +401,13 @@ def main():
 
     # print all the shapes
     for cur_type in result_types:
+        print('\n')
         for i, cur_method in enumerate(methods):
             if 'vor' in cur_method and cur_type == 'velocity':
                 continue
 
             print(f'Loaded {cur_method} {cur_type} has shape ({len(results_all_methods[cur_type][cur_method])}, {results_all_methods[cur_type][cur_method][str(time_range[0])].shape})')
 
-    exit()
     # save npz if needed
     # result_path = os.path.join(output_dir, 'vorticity_slice.npz')
     # np.savez(result_path,
