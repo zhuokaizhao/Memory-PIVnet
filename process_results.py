@@ -264,11 +264,19 @@ def main():
         plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = False
-        plot_scatter = True
+        plot_scatter = False
 
     elif mode == 'both':
+        blur_ground_truth = False
+
+        plot_particle_density = False
+        plot_image_quiver = False
         plot_color_encoded = True
+        plot_loss_magnitude_heatmap = False
+        plot_energy = False
         plot_error_line_plot = True
+        plot_result_pdf = False
+        plot_error_pdf = False
         plot_scatter = False
 
 
@@ -448,6 +456,7 @@ def main():
             # blur true vorticity by this ratio
             ground_truth[str(i)] = cv2.blur(ground_truth[str(i)], (blur_kernel_size, blur_kernel_size))
 
+
         # stand-alone particle density plot
         if plot_particle_density:
 
@@ -555,99 +564,117 @@ def main():
 
         # color encoding plots
         if plot_color_encoded:
-            # plot ground truth and all the prediction results
-            fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1, figsize=(5*(len(methods)+1), 5))
-            # plt.suptitle(f'Color-encoded {mode} quiver plot at t = {i}')
-            skip = 7
+            for cur_type in result_types:
+                # plot ground truth and all the prediction results
+                if cur_type == 'velocity':
+                    # velocity has less when method includes pure vorticity method
+                    num_less = 0
+                    for cur_method in methods:
+                        if 'vor' in cur_method:
+                            num_less += 1
 
-            # visualize ground truth
-            if mode == 'velocity':
-                flow_vis, _ = plot.visualize_flow(ground_truth[str(i)], max_vel=max_truth)
-                # convert to Image
-                flow_vis_image = Image.fromarray(flow_vis)
-                # show the image
-                axes[0].imshow(flow_vis_image)
+                    fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1-num_less, figsize=(5*(len(methods)+1-num_less), 5))
+                elif cur_type == 'vorticity':
+                    fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1, figsize=(5*(len(methods)+1), 5))
 
-                # superimpose quiver plot on color-coded images
-                x = np.linspace(0, img_size-1, img_size)
-                y = np.linspace(0, img_size-1, img_size)
-                y_pos, x_pos = np.meshgrid(x, y)
-                Q = axes[0].quiver(y_pos[::skip, ::skip],
-                                    x_pos[::skip, ::skip],
-                                    results_all_methods[cur_method][str(i)][::skip, ::skip, 0]/max_truth,
-                                    -results_all_methods[cur_method][str(i)][::skip, ::skip, 1]/max_truth,
-                                    # scale=4.0,
-                                    scale_units='inches')
-                Q._init()
-                assert isinstance(Q.scale, float)
-                axes[0].set_title(f'Ground truth')
-                axes[0].set_xlabel('x')
-                axes[0].set_ylabel('y')
+                # plt.suptitle(f'Color-encoded {mode} quiver plot at t = {i}')
+                # skip is for plotting arrows
+                skip = 7
 
-            elif mode == 'vorticity':
-                # vorticity simply uses a heatmap-like color encoding
-                axes[0].imshow(ground_truth[str(i)], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('bwr'))
-                axes[0].set_title(f'Ground truth')
-                axes[0].set_xlabel('x')
-                axes[0].set_ylabel('y')
-
-            # for each method
-            for j, cur_method in enumerate(methods):
-                if mode == 'velocity':
-                    flow_vis, _ = plot.visualize_flow(results_all_methods[cur_method][str(i)], max_vel=max_truth)
+                # visualize ground truth
+                if cur_type == 'velocity':
+                    flow_vis, _ = plot.visualize_flow(ground_truth[cur_type][str(i)], max_vel=max_truth)
                     # convert to Image
                     flow_vis_image = Image.fromarray(flow_vis)
                     # show the image
-                    axes[j+1].imshow(flow_vis_image)
+                    axes[0].imshow(flow_vis_image)
 
                     # superimpose quiver plot on color-coded images
                     x = np.linspace(0, img_size-1, img_size)
                     y = np.linspace(0, img_size-1, img_size)
                     y_pos, x_pos = np.meshgrid(x, y)
-                    Q = axes[j].quiver(y_pos[::skip, ::skip],
+                    Q = axes[0].quiver(y_pos[::skip, ::skip],
                                         x_pos[::skip, ::skip],
-                                        results_all_methods[cur_method][str(i)][::skip, ::skip, 0]/max_truth,
-                                        -results_all_methods[cur_method][str(i)][::skip, ::skip, 1]/max_truth,
+                                        results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 0]/max_truth,
+                                        -results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 1]/max_truth,
                                         # scale=4.0,
                                         scale_units='inches')
                     Q._init()
                     assert isinstance(Q.scale, float)
-                    axes[j+1].set_title(f'{cur_method}')
-                    axes[j+1].set_xlabel('x')
-                    axes[j+1].set_ylabel('y')
+                    axes[0].set_title(f'Ground truth')
+                    axes[0].set_xlabel('x')
+                    axes[0].set_ylabel('y')
 
-                elif mode == 'vorticity':
+                elif cur_type == 'vorticity':
                     # vorticity simply uses a heatmap-like color encoding
-                    axes[j+1].imshow(results_all_methods[cur_method][str(i)], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('bwr'))
-                    axes[j+1].set_title(f'{cur_method}')
-                    axes[j+1].set_xlabel('x')
-                    axes[j+1].set_ylabel('y')
+                    axes[0].imshow(ground_truth[cur_type][str(i)], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('bwr'))
+                    axes[0].set_title(f'Ground truth')
+                    axes[0].set_xlabel('x')
+                    axes[0].set_ylabel('y')
 
-                # label error
-                if loss == 'MAE':
-                    cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
-                elif loss == 'MSE':
-                    cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)
-                elif loss == 'RMSE':
-                    cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
+                # for each method
+                j = 0
+                for cur_method in enumerate(methods):
+                    if cur_type == 'velocity':
+                        if 'vor' in cur_method:
+                            continue
+                        flow_vis, _ = plot.visualize_flow(results_all_methods[cur_type][cur_method][str(i)], max_vel=max_truth)
+                        # convert to Image
+                        flow_vis_image = Image.fromarray(flow_vis)
+                        # show the image
+                        axes[j+1].imshow(flow_vis_image)
 
-                if mode == 'velocity':
-                    axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
-                elif mode == 'vorticity':
-                    axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
+                        # superimpose quiver plot on color-coded images
+                        x = np.linspace(0, img_size-1, img_size)
+                        y = np.linspace(0, img_size-1, img_size)
+                        y_pos, x_pos = np.meshgrid(x, y)
+                        Q = axes[j].quiver(y_pos[::skip, ::skip],
+                                            x_pos[::skip, ::skip],
+                                            results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 0]/max_truth,
+                                            -results_all_methods[cur_type][cur_method][str(i)][::skip, ::skip, 1]/max_truth,
+                                            # scale=4.0,
+                                            scale_units='inches')
+                        Q._init()
+                        assert isinstance(Q.scale, float)
+                        axes[j+1].set_title(f'{cur_method}')
+                        axes[j+1].set_xlabel('x')
+                        axes[j+1].set_ylabel('y')
 
-            # save the image
-            if blur_ground_truth:
-                color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded_blurred_dpi{my_dpi}')
-            else:
-                color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded_dpi{my_dpi}')
+                    elif cur_type == 'vorticity':
+                        # vorticity simply uses a heatmap-like color encoding
+                        axes[j+1].imshow(results_all_methods[cur_type][cur_method][str(i)], vmin=min_truth, vmax=max_truth, cmap=plt.get_cmap('bwr'))
+                        axes[j+1].set_title(f'{cur_method}')
+                        axes[j+1].set_xlabel('x')
+                        axes[j+1].set_ylabel('y')
 
-            os.makedirs(color_encoded_dir, exist_ok=True)
-            color_encoded_path = os.path.join(color_encoded_dir, f'{mode}_color_encoded_{str(i).zfill(4)}.png')
-            plt.savefig(color_encoded_path, bbox_inches='tight', dpi=my_dpi)
-            fig.clf()
-            plt.close(fig)
-            # print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
+                    # label error
+                    if loss == 'MAE':
+                        cur_loss = np.abs(ground_truth[str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None)
+                    elif loss == 'MSE':
+                        cur_loss = np.square(ground_truth[str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None)
+                    elif loss == 'RMSE':
+                        cur_loss = np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None))
+
+                    if cur_type == 'velocity':
+                        axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
+                    elif cur_type == 'vorticity':
+                        axes[j+1].annotate(f'{loss}: ' + '{:.3f}'.format(cur_loss), (5, 10), color='black', fontsize='medium')
+
+                    # increase counter
+                    j += 1
+
+                # save the image
+                if blur_ground_truth:
+                    color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded_blurred_dpi{my_dpi}')
+                else:
+                    color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded_dpi{my_dpi}')
+
+                os.makedirs(color_encoded_dir, exist_ok=True)
+                color_encoded_path = os.path.join(color_encoded_dir, f'{mode}_color_encoded_{str(i).zfill(4)}.png')
+                plt.savefig(color_encoded_path, bbox_inches='tight', dpi=my_dpi)
+                fig.clf()
+                plt.close(fig)
+                # print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
 
 
         # loss heatmap
