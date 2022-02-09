@@ -1097,9 +1097,9 @@ def main():
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             plt.legend()
             if blur_ground_truth:
-                vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses_blurred_dpi{my_dpi}.png')
+                vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{cur_type}_losses_blurred_dpi{my_dpi}.png')
             else:
-                vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses_dpi{my_dpi}.png')
+                vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{cur_type}_losses_dpi{my_dpi}.png')
             fig.savefig(vel_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
             print(f'\n{mode} {loss} of all frames plot has been saved to {vel_loss_curve_path}\n')
 
