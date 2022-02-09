@@ -285,7 +285,8 @@ def main():
     results_all_methods = {}
     if plot_error_line_plot:
         errors_all_methods = {}
-        energy_errors_all_methods = {}
+        if plot_energy:
+            energy_errors_all_methods = {}
 
     # load ground truth
     if mode == 'both':
@@ -342,9 +343,6 @@ def main():
 
     for cur_type in result_types:
         results_all_methods[cur_type] = {}
-        if plot_error_line_plot:
-            errors_all_methods[cur_type] = {}
-            energy_errors_all_methods[cur_type] = {}
 
         for i, cur_method in enumerate(methods):
             results_all_methods[cur_type][cur_method] = {}
@@ -427,6 +425,18 @@ def main():
     # print(results_all_methods['memory-piv-net']['0'].mean())
     # print(results_all_methods['memory-piv-net-velocity']['0'].mean())
     # exit()
+
+    # initialize error array
+    for cur_type in result_types:
+        errors_all_methods[cur_type] = {}
+        for cur_method in methods:
+            if cur_type == 'velocity' and 'vor' in cur_method:
+                continue
+            errors_all_methods[cur_type][cur_method] = []
+    # energy is not velocity/vorticity-specific
+    if plot_energy and plot_error_line_plot:
+        for cur_method in methods:
+            energy_errors_all_methods[cur_method] = []
 
     # max velocity from ground truth is useful for normalization
     # format: [min, max]
@@ -661,17 +671,16 @@ def main():
 
                 # save the image
                 if blur_ground_truth:
-                    color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded_blurred_dpi{my_dpi}')
+                    color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded_blurred_dpi{my_dpi}', cur_type)
                 else:
-                    color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded_dpi{my_dpi}')
+                    color_encoded_dir = os.path.join(output_dir, f'{mode}_color_encoded_dpi{my_dpi}', cur_type)
 
                 os.makedirs(color_encoded_dir, exist_ok=True)
-                color_encoded_path = os.path.join(color_encoded_dir, f'{mode}_color_encoded_{str(i).zfill(4)}.png')
+                color_encoded_path = os.path.join(color_encoded_dir, f'{cur_type}_color_encoded_{str(i).zfill(4)}.png')
                 plt.savefig(color_encoded_path, bbox_inches='tight', dpi=my_dpi)
                 fig.clf()
                 plt.close(fig)
                 # print(f'\nColor-encoded plot has been saved to {color_encoded_path}')
-                exit()
 
 
         # loss heatmap
@@ -760,12 +769,13 @@ def main():
 
 
         # energy computation from velocity fields
-        # compute energy for ground truth
-        ground_truth_energy = get_energy(ground_truth[str(i)])
-        # compute energy for each method
-        cur_energy_all_methods = {}
-        for j, cur_method in enumerate(methods):
-            cur_energy_all_methods[cur_method] = get_energy(results_all_methods[cur_method][str(i)])
+        if plot_energy and (mode == 'velocity' or mode == 'both'):
+            # compute energy for ground truth
+            ground_truth_energy = get_energy(ground_truth['velocity'][str(i)])
+            # compute energy for each method (energy can only be computed from velocity)
+            cur_energy_all_methods = {}
+            for j, cur_method in enumerate(methods):
+                cur_energy_all_methods[cur_method] = get_energy(results_all_methods['velocity'][cur_method][str(i)])
 
         # energy plot
         if plot_energy:
@@ -845,21 +855,28 @@ def main():
 
         # velocity error line plot
         if plot_error_line_plot:
-            for j, cur_method in enumerate(methods):
-                if loss == 'MAE':
-                    errors_all_methods[cur_method].append(np.abs(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
-                    energy_errors_all_methods[cur_method].append(np.abs(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None))
-                elif loss == 'MSE':
-                    errors_all_methods[cur_method].append(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None))
-                    energy_errors_all_methods[cur_method].append(np.square(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None))
-                elif loss == 'RMSE':
-                    errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth[str(i)] - results_all_methods[cur_method][str(i)]).mean(axis=None)))
-                    energy_errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None)))
+            for cur_type in result_types:
+
+                for cur_method in methods:
+                    if cur_type == 'velocity' and 'vor' in cur_method:
+                        continue
+
+                    if loss == 'MAE':
+                        errors_all_methods[cur_type][cur_method].append(np.abs(ground_truth[cur_type][str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None))
+                        if plot_energy:
+                            energy_errors_all_methods[cur_method].append(np.abs(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None))
+                    elif loss == 'MSE':
+                        errors_all_methods[cur_type][cur_method].append(np.square(ground_truth[cur_type][str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None))
+                        if plot_energy:
+                            energy_errors_all_methods[cur_method].append(np.square(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None))
+                    elif loss == 'RMSE':
+                        errors_all_methods[cur_type][cur_method].append(np.sqrt(np.square(ground_truth[cur_type][str(i)] - results_all_methods[cur_type][cur_method][str(i)]).mean(axis=None)))
+                        if plot_energy:
+                            energy_errors_all_methods[cur_method].append(np.sqrt(np.square(ground_truth_energy - cur_energy_all_methods[cur_method]).mean(axis=None)))
 
             cur_test_image = all_test_images[i]
             pixel_values_sum = np.sum(cur_test_image)
             all_pixel_values_sums.append(pixel_values_sum)
-
 
         # plot result pdf
         if plot_result_pdf:
@@ -1045,63 +1062,71 @@ def main():
 
 
     if plot_error_line_plot:
-        fig, ax = plt.subplots(figsize=(10, 3))
-        plt.suptitle(f'{mode} {loss} for each frame')
+        for cur_type in result_types:
+            fig, ax = plt.subplots(figsize=(10, 3))
+            plt.suptitle(f'{cur_type} {loss} for each frame')
 
-        # error line plot ordering
-        if data == 'rotational':
-            methods_order = ['LiteFlowNet-en', 'memory-piv-net', 'widim', 'pyramid']
-            colors = ['blue', 'orange', 'red', 'green']
-        elif data == 'isotropic_1024':
-            # methods_order = ['LiteFlowNet-en', 'memory-piv-net-3', 'widim', 'pyramid', 'memory-piv-net-5']
-            # colors = ['blue', 'purple', 'red', 'green', 'orange']
-            # methods_order = ['memory-piv-net-3', 'memory-piv-net-9']
-            # colors = ['black', 'orange']
-            methods_order = ['mpn-5', 'mpn-5-aug']
-            colors = ['black', 'orange']
+            # error line plot ordering
+            if data == 'rotational':
+                methods_order = ['LiteFlowNet-en', 'memory-piv-net', 'widim', 'pyramid']
+                colors = ['blue', 'orange', 'red', 'green']
+            elif data == 'isotropic_1024':
+                # methods_order = ['LiteFlowNet-en', 'memory-piv-net-3', 'widim', 'pyramid', 'memory-piv-net-5']
+                # colors = ['blue', 'purple', 'red', 'green', 'orange']
+                # methods_order = ['memory-piv-net-3', 'memory-piv-net-9']
+                # colors = ['black', 'orange']
+                # methods_order = ['mpn-5', 'mpn-5-aug']
+                # colors = ['black', 'orange']
+                if cur_type == 'velocity':
+                    methods_order = ['mpn-vel', 'mpn-combined', 'pyramid']
+                    colors = ['blue', 'purple', 'red']
+                elif cur_type == 'vorticity':
+                    methods_order = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'pyramid']
+                    colors = ['blue', 'purple', 'red', 'green']
 
-        for j, cur_method in enumerate(methods_order):
-            ax.plot(vis_frames, errors_all_methods[cur_method], label=f'{cur_method}', c=colors[j])
-            # print average result
-            cur_avg_loss = np.nanmean(errors_all_methods[cur_method])
-            print(f'{cur_method} {mode} {loss} = {cur_avg_loss}')
+            for j, cur_method in enumerate(methods_order):
+                ax.plot(vis_frames, errors_all_methods[cur_type][cur_method], label=f'{cur_method}', c=colors[j])
+                # print average result
+                cur_avg_loss = np.nanmean(errors_all_methods[cur_type][cur_method])
+                print(f'{cur_method} {cur_type} {loss} = {cur_avg_loss}')
 
-        # also plot the "quality" of the particle images
-        # ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
+            # also plot the "quality" of the particle images
+            # ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
 
-        ax.set(xlabel='time step', ylabel=f'{loss}')
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        plt.legend()
-        if blur_ground_truth:
-            vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses_blurred_dpi{my_dpi}.png')
-        else:
-            vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses_dpi{my_dpi}.png')
-        fig.savefig(vel_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
-        print(f'\n{mode} {loss} of all frames plot has been saved to {vel_loss_curve_path}\n')
+            ax.set(xlabel='time step', ylabel=f'{loss}')
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            plt.legend()
+            if blur_ground_truth:
+                vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses_blurred_dpi{my_dpi}.png')
+            else:
+                vel_loss_curve_path = os.path.join(output_dir, f'all_frames_{mode}_losses_dpi{my_dpi}.png')
+            fig.savefig(vel_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
+            print(f'\n{mode} {loss} of all frames plot has been saved to {vel_loss_curve_path}\n')
 
 
-        # energy error plot
-        fig, ax = plt.subplots(figsize=(10, 3))
-        plt.suptitle(f'Energy {loss} for each frame')
+            # energy error plot
+            if plot_energy:
+                fig, ax = plt.subplots(figsize=(10, 3))
+                plt.suptitle(f'Energy {loss} for each frame')
 
-        for j, cur_method in enumerate(methods):
-            ax.plot(vis_frames, energy_errors_all_methods[cur_method], label=f'{cur_method}')
-            # print average result
-            cur_avg_loss = np.nanmean(energy_errors_all_methods[cur_method])
-            print(f'{cur_method} energy {loss} = {cur_avg_loss}')
+                for j, cur_method in enumerate(methods):
+                    ax.plot(vis_frames, energy_errors_all_methods[cur_method], label=f'{cur_method}')
+                    # print average result
+                    cur_avg_loss = np.nanmean(energy_errors_all_methods[cur_method])
+                    print(f'{cur_method} energy {loss} = {cur_avg_loss}')
 
-        # also plot the "quality" of the particle images
-        # ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
+                # also plot the "quality" of the particle images
+                # ax.plot(vis_frames, np.array(all_pixel_values_sums)/(255*10000.0), label=f'Pixel value count/10000')
 
-        ax.set(xlabel='time step', ylabel=f'{loss}')
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        plt.legend()
-        if blur_ground_truth:
-            energy_loss_curve_path = os.path.join(output_dir, f'all_frames_energy_{mode}_losses_blurred_dpi{my_dpi}.png')
-        else:
-            energy_loss_curve_path = os.path.join(output_dir, f'all_frames_energy_{mode}_losses_dpi{my_dpi}.png')
-        fig.savefig(energy_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
-        print(f'\nEnergy {loss} of all frames plot has been saved to {energy_loss_curve_path}\n')
+                ax.set(xlabel='time step', ylabel=f'{loss}')
+                ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+                plt.legend()
+                if blur_ground_truth:
+                    energy_loss_curve_path = os.path.join(output_dir, f'all_frames_energy_{mode}_losses_blurred_dpi{my_dpi}.png')
+                else:
+                    energy_loss_curve_path = os.path.join(output_dir, f'all_frames_energy_{mode}_losses_dpi{my_dpi}.png')
+                fig.savefig(energy_loss_curve_path, bbox_inches='tight', dpi=my_dpi*2)
+                print(f'\nEnergy {loss} of all frames plot has been saved to {energy_loss_curve_path}\n')
 
 
 
