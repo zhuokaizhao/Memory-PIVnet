@@ -271,13 +271,14 @@ def main():
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = True
+        plot_color_encoded = False
         plot_loss_magnitude_heatmap = False
         plot_energy = False
-        plot_error_line_plot = True
+        plot_error_line_plot = False
         plot_result_pdf = False
         plot_error_pdf = False
         plot_scatter = False
+        plot_velocity_histogram = True
 
 
     # loaded velocity fields
@@ -411,8 +412,8 @@ def main():
         for i, cur_method in enumerate(methods):
             if 'vor' in cur_method and cur_type == 'velocity':
                 continue
-
-            print(f'Loaded {cur_method} {cur_type} has shape ({len(results_all_methods[cur_type][cur_method])}, {results_all_methods[cur_type][cur_method][str(time_range[0])].shape})')
+            num_frames = len(results_all_methods[cur_type][cur_method])
+            print(f'Loaded {cur_method} {cur_type} has mean {np.nanmean(sum(results_all_methods[cur_type][cur_method].values()))/num_frames}, shape ({num_frames}, {results_all_methods[cur_type][cur_method][str(time_range[0])].shape})')
 
     # save npz if needed
     # result_path = os.path.join(output_dir, 'vorticity_slice.npz')
@@ -427,16 +428,17 @@ def main():
     # exit()
 
     # initialize error array
-    for cur_type in result_types:
-        errors_all_methods[cur_type] = {}
-        for cur_method in methods:
-            if cur_type == 'velocity' and 'vor' in cur_method:
-                continue
-            errors_all_methods[cur_type][cur_method] = []
-    # energy is not velocity/vorticity-specific
-    if plot_energy and plot_error_line_plot:
-        for cur_method in methods:
-            energy_errors_all_methods[cur_method] = []
+    if plot_error_line_plot:
+        for cur_type in result_types:
+            errors_all_methods[cur_type] = {}
+            for cur_method in methods:
+                if cur_type == 'velocity' and 'vor' in cur_method:
+                    continue
+                errors_all_methods[cur_type][cur_method] = []
+        # energy is not velocity/vorticity-specific
+        if plot_energy and plot_error_line_plot:
+            for cur_method in methods:
+                energy_errors_all_methods[cur_method] = []
 
     # max velocity from ground truth is useful for normalization
     # format: [min, max]
@@ -648,7 +650,10 @@ def main():
 
                     elif cur_type == 'vorticity':
                         # vorticity simply uses a heatmap-like color encoding
-                        axes[j+1].imshow(results_all_methods[cur_type][cur_method][str(i)], vmin=plot_data_range[cur_type][0], vmax=plot_data_range[cur_type][1], cmap=plt.get_cmap('bwr'))
+                        if 'mpn' in cur_method and not 'vor' in cur_method:
+                            axes[j+1].imshow(results_all_methods[cur_type][cur_method][str(i)]*5, vmin=plot_data_range[cur_type][0], vmax=plot_data_range[cur_type][1], cmap=plt.get_cmap('bwr'))
+                        else:
+                            axes[j+1].imshow(results_all_methods[cur_type][cur_method][str(i)], vmin=plot_data_range[cur_type][0], vmax=plot_data_range[cur_type][1], cmap=plt.get_cmap('bwr'))
                         axes[j+1].set_title(f'{cur_method}')
                         axes[j+1].set_xlabel('x')
                         axes[j+1].set_ylabel('y')
@@ -1129,6 +1134,35 @@ def main():
                 print(f'\nEnergy {loss} of all frames plot has been saved to {energy_loss_curve_path}\n')
 
 
+    # simple histogram on velocity and vorticity
+    if plot_velocity_histogram:
+        for cur_type in result_types:
+            # plot ground truth and all the prediction results
+            if cur_type == 'velocity':
+                # velocity has less when method includes pure vorticity method
+                num_less = 0
+                for cur_method in methods:
+                    if 'vor' in cur_method:
+                        num_less += 1
+
+                fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1-num_less, figsize=(5*(len(methods)+1-num_less), 5))
+            elif cur_type == 'vorticity':
+                fig, axes = plt.subplots(nrows=1, ncols=len(methods)+1, figsize=(5*(len(methods)+1), 5))
+
+            num_bins = 10
+            gt_hist, bins = np.histogram(np.array(list(ground_truth[cur_type].values())).flatten(), num_bins)
+            axes[0].plot(bins[:num_bins], gt_hist, label='Ground truth')
+            i = 0
+            for cur_method in methods:
+                if 'vor' in cur_method and cur_type == 'velocity':
+                    continue
+                # plot histogram
+                temp = np.array(list(results_all_methods[cur_type][cur_method].values())).flatten()
+                cur_hist, _ = np.histogram(temp[~np.isnan(temp).any()], num_bins, density=True)
+                axes[i+1].plot(bins[:num_bins], cur_hist, label=cur_method)
+                i += 1
+
+            plt.show()
 
 
 if __name__ == "__main__":
