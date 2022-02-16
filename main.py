@@ -83,6 +83,17 @@ def print_progress_bar (iteration, total, prefix = '', suffix = '', decimals = 1
     #     print()
 
 
+# loss that might be used during training or testing
+class RMSELoss(torch.nn.Module):
+    def __init__(self):
+        super(RMSELoss,self).__init__()
+
+    def forward(self,x,y):
+        mse_loss = torch.nn.MSELoss()
+        loss = torch.sqrt(mse_loss(x, y))
+        return loss
+
+
 # helper functions on blendings
 # blend the top let part of the input tile
 def blend_top_left(t,
@@ -844,10 +855,12 @@ def run_test(network_model,
             raise Exception(f'Invalid end_t > total number of time frames {all_test_image_sequences.shape[2]-9}')
 
         # define the loss
-        if loss == 'MSE' or loss == 'RMSE':
+        if loss == 'MSE':
             loss_module = torch.nn.MSELoss()
         elif loss == 'MAE':
             loss_module = torch.nn.L1Loss()
+        elif  loss == 'RMSE':
+            loss_module = RMSELoss()
 
         # memory network parameters
         kwargs = {
@@ -1106,8 +1119,6 @@ def run_test(network_model,
                 if all_test_label_sequences != None:
                     if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
                         loss_unblend = loss_module(torch.from_numpy(cur_t_stitched_label_pred_normalized), torch.from_numpy(cur_t_stitched_label_true_normalized))
-                        if loss == 'RMSE':
-                            loss_unblend = torch.sqrt(loss_unblend)
                     elif loss == 'AEE':
                         sum_endpoint_error = 0
                         for i in range(final_size[0]):
@@ -1147,8 +1158,6 @@ def run_test(network_model,
                     if blend:
                         if loss == 'MAE' or loss == 'MSE' or loss == 'RMSE':
                             loss_blend = loss_module(torch.from_numpy(cur_t_stitched_label_pred_blend_normalized), torch.from_numpy(cur_t_stitched_label_true_normalized))
-                            if loss == 'RMSE':
-                                loss_blend = torch.sqrt(loss_blend)
                         elif loss == 'AEE':
                             sum_endpoint_error_blend = 0
                             for i in range(final_size[0]):
@@ -1656,10 +1665,12 @@ def main():
                 self.data_type = data_type
                 self.model = lmsi_model
                 self.lmsi_loss = lmsi_loss
-                if lmsi_loss == 'MSE' or lmsi_loss == 'RMSE':
+                if lmsi_loss == 'MSE':
                     self.loss_module = torch.nn.MSELoss()
                 elif lmsi_loss == 'MAE':
                     self.loss_module = torch.nn.L1Loss()
+                elif lmsi_loss == 'RMSE':
+                    self.loss_module = RMSELoss()
                 else:
                     raise Exception(f'Unrecognized loss function: {lmsi_loss}')
 
@@ -1713,15 +1724,27 @@ def main():
                         if vorticity_data:
                             loss = self.loss_module(cur_label_pred, cur_label_true)
                         else:
+                            # RMSE velocity loss with rate-of-strain regularization
                             vel_loss = self.loss_module(cur_label_pred, cur_label_true)
-                            # convert from torch tensor to cupy via dlpack
-                            vorticity_pred = rate_of_strain_torch.compute_vorticity(cur_label_pred, device=device)
-                            vorticity_true = rate_of_strain_torch.compute_vorticity(cur_label_true, device=device)
+                            # compute rate-of-strain tensor of the velocity field
+                            rate_of_strain_pred = rate_of_strain_torch.compute_rate_of_strain_tensor(cur_label_pred, device=device)
+                            rate_of_strain_true = rate_of_strain_torch.compute_rate_of_strain_tensor(cur_label_true, device=device)
+                            # get vorticity, divergence and shear from rate-of-strain tensor
+                            vorticity_pred = rate_of_strain_torch.get_vorticity(rate_of_strain_pred)
+                            vorticity_true = rate_of_strain_torch.get_vorticity(rate_of_strain_true)
                             vor_loss = self.loss_module(vorticity_pred, vorticity_true)
-                            loss = vel_loss + vor_loss
 
-                        if self.lmsi_loss == 'RMSE':
-                            loss = torch.sqrt(loss)
+                            divergence_pred = rate_of_strain_torch.get_divergence(rate_of_strain_pred)
+                            divergence_true = rate_of_strain_torch.get_divergence(rate_of_strain_true)
+                            div_loss = self.loss_module(divergence_pred, divergence_true)
+
+                            shear1_pred, shear2_pred = rate_of_strain_torch.get_shear(rate_of_strain_pred)
+                            shear1_true, shear2_true = rate_of_strain_torch.get_shear(rate_of_strain_true)
+                            shear_loss = 0.5*self.loss_module(shear1_pred, shear1_true) + 0.5*self.loss_module(shear2_pred, shear2_true)
+
+                            # general loss is a combination
+                            loss = vel_loss + 0.5*(vor_loss + div_loss + shear_loss)
+
 
                         # Before the backward pass, use the optimizer object to zero all of the
                         # gradients for the variables it will update
@@ -1769,8 +1792,6 @@ def main():
 
                         # compute loss
                         loss = self.loss_module(cur_label_pred, cur_label_true)
-                        if self.lmsi_loss == 'RMSE':
-                            loss = torch.sqrt(loss)
 
                         # Before the backward pass, use the optimizer object to zero all of the
                         # gradients for the variables it will update
@@ -1844,8 +1865,6 @@ def main():
 
                             # compute loss
                             loss = self.loss_module(cur_label_pred, cur_label_true)
-                            if self.lmsi_loss == 'RMSE':
-                                loss = torch.sqrt(loss)
 
                             # save the loss
                             all_losses.append(loss.detach().item())
@@ -1893,8 +1912,6 @@ def main():
 
                             # compute loss
                             loss = self.loss_module(cur_label_pred, cur_label_true)
-                            if self.lmsi_loss == 'RMSE':
-                                loss = torch.sqrt(loss)
 
                             # save the loss
                             all_losses.append(loss.detach().item())
@@ -1918,10 +1935,12 @@ def main():
             def __init__(self, lmsi_model, lmsi_loss, optimizer, time_span):
                 self.model = lmsi_model
                 self.lmsi_loss = lmsi_loss
-                if lmsi_loss == 'MSE' or lmsi_loss == 'RMSE':
+                if lmsi_loss == 'MSE':
                     self.loss_module = torch.nn.MSELoss()
                 elif lmsi_loss == 'MAE':
                     self.loss_module = torch.nn.L1Loss()
+                elif lmsi_loss == 'RMSE':
+                    self.loss_module = RMSELoss()
                 else:
                     raise Exception(f'Unrecognized loss function: {lmsi_loss}')
 
@@ -1978,8 +1997,6 @@ def main():
 
                     # compute loss
                     loss = self.loss_module(cur_label_pred, cur_label_true)
-                    if self.lmsi_loss == 'RMSE':
-                        loss = torch.sqrt(loss)
 
                     # Before the backward pass, use the optimizer object to zero all of the
                     # gradients for the variables it will update
@@ -2053,8 +2070,6 @@ def main():
 
                         # compute loss
                         loss = self.loss_module(cur_label_pred, cur_label_true)
-                        if self.lmsi_loss == 'RMSE':
-                            loss = torch.sqrt(loss)
 
                         # save the loss
                         all_losses.append(loss.detach().item())
@@ -2193,10 +2208,12 @@ def main():
             # image-pair using non-tiled dataset
             elif data_type == 'image-pair':
                 # define loss
-                if loss == 'MSE' or loss == 'RMSE':
+                if loss == 'MSE':
                     loss_module = torch.nn.MSELoss()
                 elif loss == 'MAE':
                     loss_module = torch.nn.L1Loss()
+                elif loss == 'RMSE':
+                    loss_module = RMSELoss()
                 else:
                     raise Exception(f'Unrecognized loss function: {loss}')
 
@@ -2235,8 +2252,6 @@ def main():
 
                             # compute loss
                             train_loss = loss_module(cur_label_pred, batch_labels)
-                            if loss == 'RMSE':
-                                train_loss = torch.sqrt(train_loss)
 
                             # Before the backward pass, use the optimizer object to zero all of the
                             # gradients for the variables it will update
@@ -2273,8 +2288,6 @@ def main():
 
                                 # compute loss
                                 val_loss = loss_module(cur_label_pred, batch_labels)
-                                if loss == 'RMSE':
-                                    val_loss = torch.sqrt(val_loss)
 
                                 # save the loss
                                 all_batch_val_losses.append(val_loss.detach().item())
@@ -2498,10 +2511,12 @@ def main():
                     raise Exception(f'Invalid end_index > total number of image pair {test_data.shape[0]}')
 
                 # define the loss
-                if loss == 'MSE' or loss == 'RMSE':
+                if loss == 'MSE':
                     loss_module = torch.nn.MSELoss()
                 elif loss == 'MAE':
                     loss_module = torch.nn.L1Loss()
+                elif loss == 'RMSE':
+                    loss_module = RMSELoss()
 
                 # memory network parameters
                 kwargs = {
@@ -2540,21 +2555,19 @@ def main():
                     cur_label_pred = cur_label_pred[0] / final_size
 
                     # compute loss
-                    if loss == 'RMSE' or loss == 'MSE':
+                    if loss == 'RMSE' or loss == 'MSE' or loss == 'MAE':
                         cur_loss = loss_module(torch.from_numpy(cur_label_pred), torch.from_numpy(cur_label_true))
-                        if loss == 'RMSE':
-                            cur_loss = torch.sqrt(cur_loss)
-                        elif loss == 'AEE':
-                            sum_endpoint_error = 0
-                            for i in range(final_size):
-                                for j in range(final_size):
-                                    cur_pred = cur_label_pred[i, j]
-                                    cur_true = cur_label_true[i, j]
-                                    cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
-                                    sum_endpoint_error += cur_endpoint_error
+                    elif loss == 'AEE':
+                        sum_endpoint_error = 0
+                        for i in range(final_size):
+                            for j in range(final_size):
+                                cur_pred = cur_label_pred[i, j]
+                                cur_true = cur_label_true[i, j]
+                                cur_endpoint_error = np.linalg.norm(cur_pred-cur_true)
+                                sum_endpoint_error += cur_endpoint_error
 
-                            # compute the average endpoint error
-                            cur_loss = sum_endpoint_error / (final_size*final_size)
+                        # compute the average endpoint error
+                        cur_loss = sum_endpoint_error / (final_size*final_size)
                     # customized metric that converts into polar coordinates and compare
                     elif loss == 'polar':
                         # convert both truth and predictions to polar coordinate

@@ -337,6 +337,90 @@ def cart2pol(x, y):
 
     return r, phi
 
+# used in training loop
+def compute_rate_of_strain_tensor(velocity_field, device):
+    # velocity_field has shape (batch_size, 2, 64, 64)
+    batch_size = velocity_field.shape[0]
+    num_rows = velocity_field.shape[2]
+    num_cols = velocity_field.shape[3]
+    x, y = torch.tensor(range(num_cols)), torch.tensor(range(num_rows))
+    xx, yy = torch.meshgrid(x, y, indexing='xy')
+    xx = xx.double().to(device)
+    yy = yy.double().to(device)
+
+    # rate of strain tensor is 2*2 for each pixel, so each would be (64, 64, 1, 2, 2)
+    all_rate_of_strain_tensor = torch.zeros((velocity_field.shape[0],
+                                            velocity_field.shape[2],
+                                            velocity_field.shape[3],
+                                            1, 2, 2))
+
+    for i in range(batch_size):
+        # get_duidxj_tensor function takes (dim, num_rows, num_cols)
+        all_rate_of_strain_tensor[i] = get_duidxj_tensor(velocity_field[i], xx=xx, yy=yy)
+
+    return all_rate_of_strain_tensor
+
+
+# get vorticity out from rate of strain tensor and permute into pytorch format
+def get_vorticity(rate_of_strain_tensor):
+    batch_size = rate_of_strain_tensor.shape[0]
+    all_vorticity = torch.zeros((rate_of_strain_tensor.shape[0],
+                                1,
+                                rate_of_strain_tensor.shape[1],
+                                rate_of_strain_tensor.shape[2]))
+
+    for i in range(batch_size):
+        omega = rate_of_strain_tensor[i, ..., 1, 0] - rate_of_strain_tensor[i, ..., 0, 1]
+        # rearrange vorticity from (num_rows, num_cols, dim) to (dim, num_rows, num_cols)
+        omega = torch.permute(omega, (2, 0, 1))
+        all_vorticity[i] = omega
+
+    return all_vorticity
+
+
+# get divergence out from rate of strain tensor and permute into pytorch format
+def get_divergence(rate_of_strain_tensor):
+    batch_size = rate_of_strain_tensor.shape[0]
+    all_divergence = torch.zeros((rate_of_strain_tensor.shape[0],
+                                1,
+                                rate_of_strain_tensor.shape[1],
+                                rate_of_strain_tensor.shape[2]))
+
+    for i in range(batch_size):
+        div = rate_of_strain_tensor[i, ..., 0, 0] + rate_of_strain_tensor[i, ..., 1, 1]
+        # rearrange divergence from (num_rows, num_cols, dim) to (dim, num_rows, num_cols)
+        div = torch.permute(div, (2, 0, 1))
+        all_divergence[i] = div
+
+    return all_divergence
+
+
+# get shear 1 and 2 out from rate of strain tensor and permute into pytorch format
+def get_shear(rate_of_strain_tensor):
+    batch_size = rate_of_strain_tensor.shape[0]
+    all_shear_1 = torch.zeros((rate_of_strain_tensor.shape[0],
+                                1,
+                                rate_of_strain_tensor.shape[1],
+                                rate_of_strain_tensor.shape[2]))
+    all_shear_2 = torch.zeros((rate_of_strain_tensor.shape[0],
+                                1,
+                                rate_of_strain_tensor.shape[1],
+                                rate_of_strain_tensor.shape[2]))
+
+    for i in range(batch_size):
+        # Shear 1
+        shear_1 = rate_of_strain_tensor[i, ..., 0, 0] - rate_of_strain_tensor[i, ..., 1, 1]
+        # Shear 2
+        shear_2 = rate_of_strain_tensor[i, ..., 1, 0] + rate_of_strain_tensor[i, ..., 0, 1]
+        # rearrange shear from (num_rows, num_cols, dim) to (dim, num_rows, num_cols)
+        shear_1 = torch.permute(shear_1, (2, 0, 1))
+        shear_2 = torch.permute(shear_2, (2, 0, 1))
+
+        all_shear_1[i] = shear_1
+        all_shear_2[i] = shear_2
+
+    return all_shear_1, all_shear_2
+
 
 # used in training loop
 def compute_vorticity(velocity_field, device):
