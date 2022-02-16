@@ -15,7 +15,7 @@ from scipy.stats.kde import gaussian_kde
 from matplotlib.ticker import MaxNLocator
 
 import plot
-import vorticity_numpy
+import rate_of_strain_numpy
 
 
 def main():

@@ -365,16 +365,29 @@ if __name__=='__main__':
     x, y = list(range(ncols)), list(range(nrows))
     xx, yy = np.meshgrid(x, y)
     udata = rankine_vortex_2d(xx, yy, x0=32, y0=32, a=10)
-    print(xx)
-    print(udata.shape)
+    print(f'Sample data has shape {udata.shape}')
 
-    # Compute vorticity
+    # Compute vorticity from curl function
     ## For a 2D v-field, it returns an array with a shape (nrows, ncols, duration)
     ## In this example, udata has a shape (2, nrows, ncols) but one can pass a more general v-field with a shape (2, nrows, ncols, duration)
     ## curl() also works with a 3D v-field input. udata.shape = (3, nrows, ncols, ndepth) or (3, nrows, ncols, ndepth, duration)
     ## In this case, curl returns an array (3, nrows, ncols, ndepth, duration).
     omega = curl(udata, xx=xx, yy=yy)
-    print(omega.shape)
+    print(f'Vorticity from curl has shape {omega.shape}')
+
+    # compute vorticity from decomposing the rate-of-strain tensor
+    duidxj = get_duidxj_tensor(udata, xx=xx, yy=yy)
+    curlU = duidxj[..., 1, 0] - duidxj[..., 0, 1]
+    print(f'Vorticity from decomposition has shape {curlU.shape}')
+
+    if not np.allclose(omega, curlU):
+        print(omega.shape)
+        print(omega)
+        print(curlU.shape)
+        print(curlU)
+        print(omega-curlU)
+        raise Exception(f'Result from both approaches is not the same as numpy')
+    exit()
 
     # PLOTTING
     fig, ax = plt.subplots(figsize=(8, 8))

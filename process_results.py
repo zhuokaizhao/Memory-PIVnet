@@ -15,7 +15,7 @@ from scipy.stats.kde import gaussian_kde
 from matplotlib.ticker import MaxNLocator
 
 import plot
-import vorticity_numpy
+import rate_of_strain_numpy
 
 
 # helper function that computes energy from the velocity field
@@ -37,7 +37,7 @@ def compute_vorticity(cur_velocity_field, xx, yy):
     # all_velocity_fields has shape (height, width, 2)
     # curl function takes (dim, num_rows, num_cols)
     udata = np.moveaxis(cur_velocity_field, [0, 1, 2], [1, 2, 0])
-    cur_vorticity = vorticity_numpy.curl(udata, xx=xx, yy=yy)
+    cur_vorticity = rate_of_strain_numpy.curl(udata, xx=xx, yy=yy)
 
     return np.array(cur_vorticity)
 

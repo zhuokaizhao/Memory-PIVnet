@@ -36,9 +36,9 @@ import models
 import plot
 import tools
 import pair_data
-import vorticity_numpy
-import vorticity_cupy
-import vorticity_torch
+import rate_of_strain_numpy
+import rate_of_strain_cupy
+import rate_of_strain_torch
 
 print('\n\nPython VERSION:', sys.version)
 print('PyTorch VERSION:', torch.__version__)
@@ -1715,8 +1715,8 @@ def main():
                         else:
                             vel_loss = self.loss_module(cur_label_pred, cur_label_true)
                             # convert from torch tensor to cupy via dlpack
-                            vorticity_pred = vorticity_torch.compute_vorticity(cur_label_pred, device=device)
-                            vorticity_true = vorticity_torch.compute_vorticity(cur_label_true, device=device)
+                            vorticity_pred = rate_of_strain_torch.compute_vorticity(cur_label_pred, device=device)
+                            vorticity_true = rate_of_strain_torch.compute_vorticity(cur_label_true, device=device)
                             vor_loss = self.loss_module(vorticity_pred, vorticity_true)
                             loss = vel_loss + vor_loss
 
