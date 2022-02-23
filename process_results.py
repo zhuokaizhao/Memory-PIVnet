@@ -272,14 +272,14 @@ def main():
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = True
+        plot_color_encoded = False
         plot_loss_magnitude_heatmap = False
         plot_energy = False
         plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = False
         plot_scatter = False
-        plot_velocity_histogram = True
+        plot_velocity_histogram = False
 
 
     # loaded velocity fields
@@ -1084,11 +1084,11 @@ def main():
                 # methods_order = ['mpn-5', 'mpn-5-aug']
                 # colors = ['black', 'orange']
                 if cur_type == 'velocity':
-                    methods_order = ['mpn-vel', 'mpn-combined', 'pyramid']
-                    colors = ['blue', 'purple', 'red']
+                    methods_order = ['mpn-vel', 'mpn-combined', 'mpn-strain-rate', 'pyramid']
+                    colors = ['blue', 'red', 'green', 'orange']
                 elif cur_type == 'vorticity':
-                    methods_order = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'pyramid']
-                    colors = ['blue', 'purple', 'red', 'green']
+                    methods_order = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'mpn-strain-rate', 'pyramid']
+                    colors = ['blue', 'purple', 'red', 'green', 'orange']
 
             for j, cur_method in enumerate(methods_order):
                 ax.plot(vis_frames, errors_all_methods[cur_type][cur_method], label=f'{cur_method}', c=colors[j])
