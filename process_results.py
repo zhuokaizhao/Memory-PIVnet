@@ -209,11 +209,12 @@ def main():
                             'vorticity': '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vor_field/'}
 
         # list of methods
-        methods = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'pyramid']
+        methods = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'mpn-strain-rate', 'pyramid']
 
         result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/blend_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vor_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/combined_loss/blend_vel_field/',
+                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/combined_loss_all/blend_vel_field/',
                         '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5']
 
     else:
@@ -271,10 +272,10 @@ def main():
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = False
+        plot_color_encoded = True
         plot_loss_magnitude_heatmap = False
         plot_energy = False
-        plot_error_line_plot = False
+        plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = False
         plot_scatter = False
@@ -339,7 +340,7 @@ def main():
 
     # when computing vorticity from velocity, xx and yy grids are required
     if mode == 'vorticity' or mode == 'both':
-        with h5py.File(result_dirs[3], mode='r') as f:
+        with h5py.File(result_dirs[-1], mode='r') as f:
             xx, yy = f['x'][...], f['y'][...]
 
     for cur_type in result_types:
