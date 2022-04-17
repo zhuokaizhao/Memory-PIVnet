@@ -1450,42 +1450,42 @@ def main():
     # mode (data, train, or test mode)
     parser.add_argument('--mode', required=True, action='store', nargs=1, dest='mode', help=doc.mode)
     # network method (memory-piv-net, etc)
-    parser.add_argument('-n', '--network-model', action='store', nargs=1, dest='network_model')
+    parser.add_argument('-n', '--network_model', action='store', nargs=1, dest='network_model')
     # input dataset ditectory for various non train/test related modes
-    parser.add_argument('-i', '--input-dir', action='store', nargs=1, dest='input_dir', help=doc.data_dir)
+    parser.add_argument('-i', '--input_dir', action='store', nargs=1, dest='input_dir', help=doc.data_dir)
     # input training dataset director
-    parser.add_argument('--train-dir', action='store', nargs=1, dest='train_dir')
+    parser.add_argument('--train_dir', action='store', nargs=1, dest='train_dir')
     # input validation dataset ditectory
-    parser.add_argument('--val-dir', action='store', nargs=1, dest='val_dir')
+    parser.add_argument('--val_dir', action='store', nargs=1, dest='val_dir')
     # input testing dataset ditectory
-    parser.add_argument('--test-dir', action='store', nargs=1, dest='test_dir')
+    parser.add_argument('--test_dir', action='store', nargs=1, dest='test_dir')
     # dataset property (ours or other existing image-pair datasets)
-    parser.add_argument('-d', '--data-type', action='store', nargs=1, dest='data_type')
+    parser.add_argument('-d', '--data_type', action='store', nargs=1, dest='data_type')
     # velocity data or vorticity data
     parser.add_argument('--vorticity_data', action='store_true', dest='vorticity_data', default=False)
     # epoch size
-    parser.add_argument('-e', '--num-epoch', action='store', nargs=1, dest='num_epoch')
+    parser.add_argument('-e', '--num_epoch', action='store', nargs=1, dest='num_epoch')
     # batch size
-    parser.add_argument('-b', '--batch-size', action='store', nargs=1, dest='batch_size')
+    parser.add_argument('-b', '--batch_size', action='store', nargs=1, dest='batch_size')
     # image tile size
-    parser.add_argument('-s', '--tile-size', action='store', nargs=1, dest='tile_size')
+    parser.add_argument('-s', '--tile_size', action='store', nargs=1, dest='tile_size')
     # 3D patch time span
-    parser.add_argument('-t', '--time-span', action='store', nargs=1, dest='time_span')
+    parser.add_argument('-t', '--time_span', action='store', nargs=1, dest='time_span')
     # loss function
     parser.add_argument('-l', '--loss', action='store', nargs=1, dest='loss')
     # checkpoint path for continuing training
-    parser.add_argument('-c', '--checkpoint-dir', action='store', nargs=1, dest='checkpoint_path')
+    parser.add_argument('-c', '--checkpoint_dir', action='store', nargs=1, dest='checkpoint_path')
     # input or output model directory
-    parser.add_argument('-m', '--model-dir', action='store', nargs=1, dest='model_dir', help=doc.model_dir)
+    parser.add_argument('-m', '--model_dir', action='store', nargs=1, dest='model_dir', help=doc.model_dir)
     # output directory (tfrecord in 'data' mode, figure in 'training' mode)
-    parser.add_argument('-o', '--output-dir', action='store', nargs=1, dest='output_dir', help=doc.figs_dir)
+    parser.add_argument('-o', '--output_dir', action='store', nargs=1, dest='output_dir', help=doc.figs_dir)
     # save checkpoint interval
-    parser.add_argument('-f', '--save-freq', action='store', nargs=1, dest='save_freq')
+    parser.add_argument('-f', '--save_freq', action='store', nargs=1, dest='save_freq')
     # start and end t used when testing (both inclusive)
-    parser.add_argument('--start-t', action='store', nargs=1, dest='start_t')
-    parser.add_argument('--end-t', action='store', nargs=1, dest='end_t')
+    parser.add_argument('--start_t', action='store', nargs=1, dest='start_t')
+    parser.add_argument('--end_t', action='store', nargs=1, dest='end_t')
     # whether use persistent memory state
-    parser.add_argument('--long-term-memory', action='store_true', dest='long_term_memory', default=False)
+    parser.add_argument('--long_term_memory', action='store_true', dest='long_term_memory', default=False)
     # verbosity
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose', default=False)
     args = parser.parse_args()
@@ -1519,7 +1519,7 @@ def main():
         val_dir = args.val_dir[0]
 
         # sanity check to make sure network model and data type are compatible
-        if network_model == 'memory-piv-net':
+        if network_model == 'memory-piv-net' or network_model == 'memory-piv-net-lite':
             if data_type == 'image-pair-tiled':
                 raise Exception('Non-compatible network model and data type')
         elif network_model == 'memory-piv-net-ip-tiled':
@@ -1743,7 +1743,8 @@ def main():
                             shear_loss = 0.5*self.loss_module(shear1_pred, shear1_true) + 0.5*self.loss_module(shear2_pred, shear2_true)
 
                             # general loss is a combination
-                            loss = vel_loss + 0.5*(vor_loss + div_loss + shear_loss)
+                            # loss = vel_loss + 0.5*(vor_loss + div_loss + shear_loss)
+                            loss = vel_loss
 
 
                         # Before the backward pass, use the optimizer object to zero all of the
@@ -2100,6 +2101,8 @@ def main():
         lmsi_model = None
         if network_model == 'memory-piv-net' or network_model == 'memory-piv-net-ip-tiled':
             lmsi_model = models.Memory_PIVnet(**kwargs)
+        elif network_model == 'memory-piv-net-lite':
+            lmsi_model = models.Memory_PIVnet_lite(**kwargs)
         elif network_model == 'memory-piv-net-no-neighbor' or network_model == 'memory-piv-net-ip':
             lmsi_model = models.Memory_PIVnet_No_Neighbor(**kwargs)
 
