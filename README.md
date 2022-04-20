@@ -9,21 +9,44 @@ A shell script is provided to install necessary libraries in your system ([virtu
     ```
     sh setup_env.sh
     ```
-
-
-3. **List of libraries**
+3. **List of libraries**<br>
 If the shell script does not work for your, you can also install the following libraries manually.
-- [PyTorch](https://pytorch.org/)
-- [OpenCV](https://anaconda.org/conda-forge/opencv)
-- [pillow](https://anaconda.org/conda-forge/pillow)
-- [scikit-image](https://anaconda.org/sunpy/scikit-image)
-- [h5py](https://anaconda.org/conda-forge/h5py)
-- [tqdm](https://anaconda.org/conda-forge/tqdm)
-- [flowiz](https://pypi.org/project/flowiz/)
-- [seaborn](https://anaconda.org/conda-forge/seaborn)
-- [matplotlib](https://anaconda.org/conda-forge/matplotlib-base)
+    - [PyTorch](https://pytorch.org/)
+    - [OpenCV](https://anaconda.org/conda-forge/opencv)
+    - [pillow](https://anaconda.org/conda-forge/pillow)
+    - [scikit-image](https://anaconda.org/sunpy/scikit-image)
+    - [h5py](https://anaconda.org/conda-forge/h5py)
+    - [tqdm](https://anaconda.org/conda-forge/tqdm)
+    - [flowiz](https://pypi.org/project/flowiz/)
+    - [seaborn](https://anaconda.org/conda-forge/seaborn)
+    - [matplotlib](https://anaconda.org/conda-forge/matplotlib-base)
 
-## Training
+## Training<br>
+The data used for training can be found at the shared [Google Drive](https://drive.google.com/drive/u/1/folders/1aB-bA3UKD9xXhjeJWoDfNSjhuulJ_XPi). Or you could create your own dataset using code and instructions available at [PIV_Data_Processing](https://github.com/zhuokaizhao/PIV-Data-Processing).
+To start training, use the following command-line options:<br>
+
+Necessary:
+- ```--mode```: For training purpose, use `train`
+- ```--network_model```: by default, use `memory-piv-net`. Other variants could be `memory-piv-net-lite` (lite version) or `memory-piv-net-ip-tiled` (use image pairs only)
+- ```--train_dir```: Path to your `.h5` training data
+- ```--val_dir```: Path to your `.h5` validation data
+- ```--num_epoch```: Number of epochs
+- ```--batch_size```: Batch size, For 24GB VRAM cards, the recommended batch size is 8
+- ```--time_span```: Choose between `3`, `5`, `7`, `9`. Recommended time span is `5`.
+- ```--loss```: Choose between `RMSE`, `MSE`, `MAE` and `AEE`. Recommended loss is `RMSE`.
+- ```--model_dir```: Folder directory to where the trained model will be saved
+- ```--output_dir```: Folder directory to where the training loss graph will be saved
+- ```--save_freq```: Models are saved every `save_freq` epochs to the `model_dir` defined above.
+
+Optional:
+- ```--data_type```: Choose between `multi-frame` (default) or `image-pair`
+- ```--tile_size```: Size of the input data
+- ```--long_term_memory```: Flag to keep the memory for the entire sequence (not recommended)
+- ```--verbose```: Verbosity
+
+To continue training, add
+- ```--checkpoint_dir```: Checkpoint model path to continue training with
+
 
 ## Testing
 
