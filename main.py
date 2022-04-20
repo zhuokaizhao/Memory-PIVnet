@@ -876,6 +876,8 @@ def run_test(network_model,
         lmsi_model = None
         if network_model == 'memory-piv-net' or network_model == 'memory-piv-net-ip-tiled':
             lmsi_model = models.Memory_PIVnet(**kwargs)
+        elif network_model == 'memory-piv-net-lite':
+            lmsi_model = models.Memory_PIVnet_lite(**kwargs)
         elif network_model == 'memory-piv-net-no-neighbor':
             lmsi_model = models.Memory_PIVnet_No_Neighbor(**kwargs)
             # no blend is available for non-padding data
@@ -2398,7 +2400,7 @@ def main():
         # final_size = [800, 1280]
 
         # sanity check to make sure network model and data type are compatible
-        if network_model == 'memory-piv-net':
+        if network_model == 'memory-piv-net' or network_model == 'memory-piv-net-lite':
             if data_type == 'image-pair-tiled':
                 raise Exception('Non-compatible network model and data type')
         elif network_model == 'memory-piv-net-ip-tiled':

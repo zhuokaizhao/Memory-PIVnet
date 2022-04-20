@@ -1360,7 +1360,7 @@ class Memory_PIVnet_lite(torch.nn.Module):
                 return pred_flow
 
         # memory network
-        all_hidden_channels = [16, 32, 64, 128]
+        all_hidden_channels = [16, 32, 64, 64]
         self.memory_network = MemoryNetwork(self.num_channels, all_hidden_channels)
 
         # flow estimation (don't use the last level when multi-frame)
