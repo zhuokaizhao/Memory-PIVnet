@@ -6,3 +6,5 @@ conda install -c conda-forge matplotlib -y
 conda install -c anaconda pillow -y
 conda install -c anaconda seaborn -y
 pip install flowiz -U
+conda install -c conda-forge opencv -y
+conda install scikit-image -y
