@@ -11,16 +11,11 @@ os.environ['CUDA_VISIBLE_DEVICES']='0'
 # not printing tf warnings
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import sys
-import math
-import glob
 import time
 import h5py
-import copy
 import torch
 import random
 import argparse
-import subprocess
-import cupy as cp
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
@@ -28,16 +23,10 @@ from subprocess import call
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
-from torch.utils.dlpack import to_dlpack
-from torch.utils.dlpack import from_dlpack
-
-import doc
 import models
 import plot
 import tools
 import pair_data
-import rate_of_strain_numpy
-import rate_of_strain_cupy
 import rate_of_strain_torch
 
 print('\n\nPython VERSION:', sys.version)
@@ -705,6 +694,7 @@ def prepare_patches(t,
     return all_patches_pred, h_cur_time_last, c_cur_time_last
 
 
+# bilinear interpolation blending of all the tiles
 def bilinear_interpolate_blend(h_patch,
                                w_patch,
                                patch_index,
@@ -1436,6 +1426,7 @@ def run_test(network_model,
                         loss_curve_path = os.path.join(output_dir, f'{network_model}_{time_span}_{start_t}_{end_t}_all_losses_blend.svg')
                     fig.savefig(loss_curve_path, bbox_inches='tight')
 
+
 # use when training with long term memroy
 def repackage_hidden(h):
     """Wraps hidden states in new Tensors, to detach them from their history."""
@@ -1445,16 +1436,16 @@ def repackage_hidden(h):
     else:
         return list(repackage_hidden(v) for v in h)
 
+
+# main function
 def main():
 
 	# input arguments
-    parser = argparse.ArgumentParser(description=doc.description)
+    parser = argparse.ArgumentParser()
     # mode (data, train, or test mode)
-    parser.add_argument('--mode', required=True, action='store', nargs=1, dest='mode', help=doc.mode)
+    parser.add_argument('--mode', required=True, action='store', nargs=1, dest='mode')
     # network method (memory-piv-net, etc)
     parser.add_argument('-n', '--network_model', action='store', nargs=1, dest='network_model')
-    # input dataset ditectory for various non train/test related modes
-    parser.add_argument('-i', '--input_dir', action='store', nargs=1, dest='input_dir', help=doc.data_dir)
     # input training dataset director
     parser.add_argument('--train_dir', action='store', nargs=1, dest='train_dir')
     # input validation dataset ditectory
@@ -1478,9 +1469,9 @@ def main():
     # checkpoint path for continuing training
     parser.add_argument('-c', '--checkpoint_dir', action='store', nargs=1, dest='checkpoint_path')
     # input or output model directory
-    parser.add_argument('-m', '--model_dir', action='store', nargs=1, dest='model_dir', help=doc.model_dir)
+    parser.add_argument('-m', '--model_dir', action='store', nargs=1, dest='model_dir')
     # output directory (tfrecord in 'data' mode, figure in 'training' mode)
-    parser.add_argument('-o', '--output_dir', action='store', nargs=1, dest='output_dir', help=doc.figs_dir)
+    parser.add_argument('-o', '--output_dir', action='store', nargs=1, dest='output_dir')
     # save checkpoint interval
     parser.add_argument('-f', '--save_freq', action='store', nargs=1, dest='save_freq')
     # start and end t used when testing (both inclusive)
@@ -2365,12 +2356,6 @@ def main():
     # new test mode for train-new that loads model and perform prediction
     elif mode == 'test':
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-        if verbose:
-            print(f'\nmode: {mode}')
-            print(f'\nIn {mode} mode, input_dir is the directory that contains preprocessed .h5 dataset')
-            print('\nmodel_dir is required in this mode, which is the trained model used to run predictions')
-            print('\noutput_dir in this mode is the directory where figures, etc are saved to')
 
         network_model = args.network_model[0]
         test_dir = args.test_dir[0]

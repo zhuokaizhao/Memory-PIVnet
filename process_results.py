@@ -135,12 +135,12 @@ def main():
     # data name (isotropic_1024 or rotational)
     parser.add_argument('--data', required=True, action='store', nargs=1, dest='data')
     # start and end t used when testing (both inclusive)
-    parser.add_argument('--start-t', action='store', nargs=1, dest='start_t')
-    parser.add_argument('--end-t', action='store', nargs=1, dest='end_t')
+    parser.add_argument('--start_t', action='store', nargs=1, dest='start_t')
+    parser.add_argument('--end_t', action='store', nargs=1, dest='end_t')
     # loss function
     parser.add_argument('-l', '--loss', action='store', nargs=1, dest='loss')
     # output figure directory
-    parser.add_argument('-o', '--output-dir', action='store', nargs=1, dest='output_dir')
+    parser.add_argument('-o', '--output_dir', action='store', nargs=1, dest='output_dir')
 
     args = parser.parse_args()
     mode = args.mode[0]
@@ -160,7 +160,7 @@ def main():
     # when we are only evaluating velocity
     if mode == 'velocity':
         if data == 'isotropic_1024':
-            # ground_truth_path = '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/'
+            ground_true_path = {'velocity': '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/'}
             # methods = ['memory-piv-net-3', 'memory-piv-net-5', 'LiteFlowNet-en', 'pyramid', 'widim']
             # result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_3/blend_vel_field/',
             #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vel_field/',
@@ -169,20 +169,25 @@ def main():
             #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/widim/TR_PIV_MPd(1x8x8_50ov)_2x32x32.h5']
 
             # for showing augmentations
-            methods = ['mpn-5', 'mpn-5-aug']
-            ground_truth_path = {'velocity': ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/',
-                                              '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot90/true_vel_field/',
-                                              '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot180/true_vel_field/',
-                                              '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/true_vel_field/']}
+            # methods = ['mpn-5', 'mpn-5-aug']
+            # ground_truth_path = {'velocity': ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/true_vel_field/',
+            #                                   '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot90/true_vel_field/',
+            #                                   '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot180/true_vel_field/',
+            #                                   '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/true_vel_field/']}
 
-            result_dirs = [['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
-                            ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
-                            ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
-                            ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
-                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/']]
+            # result_dirs = [['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
+            #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
+            #                 ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
+            #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
+            #                 ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
+            #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/'],
+            #                 ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/rot270/blend_vel_field/',
+            #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024_augmented/velocity/amnesia_memory/50000_seeds/time_span_5/epoch25/rot270/blend_vel_field/']]
+
+            methods = ['mpn-vel', 'mpn-vel-lite']
+            result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/blend_vel_field/',
+                            '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/lite_vel_loss/blend_vel_field/']
+
         elif data == 'rotational':
             ground_truth_path = {'velocity': '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Rotational/velocity/amnesia_memory/4000_seeds/no_pe/time_span_5/true_vel_field/'}
             methods = ['memory-piv-net', 'LiteFlowNet-en', 'pyramid', 'widim']
@@ -209,13 +214,15 @@ def main():
                             'vorticity': '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/true_vor_field/'}
 
         # list of methods
-        methods = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'mpn-strain-rate', 'pyramid']
+        # methods = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'mpn-strain-rate', 'pyramid']
 
+        # result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/blend_vel_field/',
+        #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vor_field/',
+        #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/combined_loss/blend_vel_field/',
+        #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/combined_loss_all/blend_vel_field/',
+        #                 '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5']
         result_dirs = ['/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/original/blend_vel_field/',
-                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/vorticity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/blend_vor_field/',
-                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/combined_loss/blend_vel_field/',
-                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/combined_loss_all/blend_vel_field/',
-                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/pyramid/TR_Pyramid(2,5)_MPd(1x8x8_50ov)_2x32x32.h5']
+                        '/home/zhuokai/Desktop/UChicago/Research/Memory-PIVnet/output/Isotropic_1024/velocity/memory_piv_net/amnesia_memory/50000_seeds/time_span_5/lite_vel_loss/blend_vel_field/']
 
     else:
         raise Exception(f'Unknown mode {mode}')
@@ -246,13 +253,14 @@ def main():
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = True
+        plot_color_encoded = False
         plot_loss_magnitude_heatmap = False
         plot_energy = False
         plot_error_line_plot = True
         plot_result_pdf = False
         plot_error_pdf = False
         plot_scatter = False
+        plot_velocity_histogram = False
 
     elif mode == 'vorticity':
         blur_ground_truth = False
@@ -266,13 +274,14 @@ def main():
         plot_result_pdf = False
         plot_error_pdf = False
         plot_scatter = False
+        plot_velocity_histogram = False
 
     elif mode == 'both':
         blur_ground_truth = False
 
         plot_particle_density = False
         plot_image_quiver = False
-        plot_color_encoded = False
+        plot_color_encoded = True
         plot_loss_magnitude_heatmap = False
         plot_energy = False
         plot_error_line_plot = True
@@ -1084,8 +1093,10 @@ def main():
                 # methods_order = ['mpn-5', 'mpn-5-aug']
                 # colors = ['black', 'orange']
                 if cur_type == 'velocity':
-                    methods_order = ['mpn-vel', 'mpn-combined', 'mpn-strain-rate', 'pyramid']
-                    colors = ['blue', 'red', 'green', 'orange']
+                    # methods_order = ['mpn-vel', 'mpn-combined', 'mpn-strain-rate', 'pyramid']
+                    # colors = ['blue', 'red', 'green', 'orange']
+                    methods_order = ['mpn-vel', 'mpn-vel-lite']
+                    colors = ['blue', 'red']
                 elif cur_type == 'vorticity':
                     methods_order = ['mpn-vel', 'mpn-vor', 'mpn-combined', 'mpn-strain-rate', 'pyramid']
                     colors = ['blue', 'purple', 'red', 'green', 'orange']
