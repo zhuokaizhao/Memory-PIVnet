@@ -1,29 +1,40 @@
 # Memory-PIVnet
 Memory-based CNN that solves Particle Imaging Velocimetry (PIV).
 
-## Environment Setup
-1. **System Tested On**:<br>
-Ubuntu 20.04
-2. **Automatic Script**<br>
-A shell script is provided to install necessary libraries in your system ([virtual environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) recommended). Simply run<br>
-    ```
-    sh setup_env.sh
-    ```
-3. **List of libraries**<br>
-If the shell script does not work for your, you can also install the following libraries manually.
-    - [PyTorch](https://pytorch.org/)
-    - [OpenCV](https://anaconda.org/conda-forge/opencv)
-    - [pillow](https://anaconda.org/conda-forge/pillow)
-    - [scikit-image](https://anaconda.org/sunpy/scikit-image)
-    - [h5py](https://anaconda.org/conda-forge/h5py)
-    - [tqdm](https://anaconda.org/conda-forge/tqdm)
-    - [flowiz](https://pypi.org/project/flowiz/)
-    - [seaborn](https://anaconda.org/conda-forge/seaborn)
-    - [matplotlib](https://anaconda.org/conda-forge/matplotlib-base)
+## 1. Environment Setup
+**System Tested On**:<br>
+Ubuntu 20.04<br>
 
-## Training<br>
-The data used for training can be found at the shared [Google Drive](https://drive.google.com/drive/u/1/folders/1aB-bA3UKD9xXhjeJWoDfNSjhuulJ_XPi). Or you could create your own dataset using code and instructions available at [PIV_Data_Processing](https://github.com/zhuokaizhao/PIV-Data-Processing).
-To start training, use the following command-line options:<br>
+**Automatic Script**<br>
+A shell script is provided to install necessary libraries in your system ([virtual environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) recommended).<br>
+Simply run<br>
+```
+sh setup_env.sh
+```
+
+**List of libraries**<br>
+If the shell script does not work for your, you can also install the following libraries manually.
+- [PyTorch](https://pytorch.org/)
+- [OpenCV](https://anaconda.org/conda-forge/opencv)
+- [pillow](https://anaconda.org/conda-forge/pillow)
+- [scikit-image](https://anaconda.org/sunpy/scikit-image)
+- [h5py](https://anaconda.org/conda-forge/h5py)
+- [tqdm](https://anaconda.org/conda-forge/tqdm)
+- [flowiz](https://pypi.org/project/flowiz/)
+- [seaborn](https://anaconda.org/conda-forge/seaborn)
+- [matplotlib](https://anaconda.org/conda-forge/matplotlib-base)
+
+
+## 2. Data<br>
+The data used for training or testing can be found at the shared [Google Drive](https://drive.google.com/drive/u/1/folders/1aB-bA3UKD9xXhjeJWoDfNSjhuulJ_XPi). Or you could create your own dataset using code and instructions available at [PIV_Data_Processing](https://github.com/zhuokaizhao/PIV-Data-Processing).
+
+
+## 3. Training<br>
+To start training, run
+```
+python main.py
+```
+and use the following command-line options:<br>
 
 Necessary:
 - ```--mode```: For training purpose, use `train`
@@ -47,10 +58,15 @@ Optional:
 To continue training, add
 - ```--checkpoint_dir```: Checkpoint model path to continue training with
 
+An example complete command line input could be
+```
+python main.py --mode train --network_model memory-piv-net --train_dir TRAIN_DATA_PATH --val_dir VALIDATION_DATA_PATH --num_epoch 50 --batch_size 8 --time_span 5 --loss RMSE --model_dir model/temp/ --output_dir figs/temp/ --save_freq 5 --verbose
+```
 
-## Testing
 
-## Result Processing
+## 4. Testing
+
+## 5. Result Processing
 
 
 
