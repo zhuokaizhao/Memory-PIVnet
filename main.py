@@ -1566,9 +1566,9 @@ def main():
             all_train_image_sequences = []
             all_train_label_sequences = []
             for i in range(len(list(train_dataset.keys()))):
-                if list(train_dataset.keys())[i].startswith('image'):
+                if 'image' in list(train_dataset.keys())[i]:
                     all_train_image_sequences.append(train_dataset.get(list(train_dataset.keys())[i]))
-                elif list(train_dataset.keys())[i].startswith('label'):
+                elif 'label' in list(train_dataset.keys())[i]:
                     all_train_label_sequences.append(train_dataset.get(list(train_dataset.keys())[i]))
 
             all_train_image_sequences = np.array(all_train_image_sequences)
@@ -1586,9 +1586,9 @@ def main():
             all_val_image_sequences = []
             all_val_label_sequences = []
             for i in range(len(list(val_dataset.keys()))):
-                if list(val_dataset.keys())[i].startswith('image'):
+                if 'image' in list(val_dataset.keys())[i]:
                     all_val_image_sequences.append(val_dataset.get(list(val_dataset.keys())[i]))
-                elif list(val_dataset.keys())[i].startswith('label'):
+                elif 'label' in list(val_dataset.keys())[i]:
                     all_val_label_sequences.append(val_dataset.get(list(val_dataset.keys())[i]))
 
             all_val_image_sequences = np.array(all_val_image_sequences)

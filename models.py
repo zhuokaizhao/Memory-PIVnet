@@ -649,6 +649,11 @@ class Memory_PIVnet(torch.nn.Module):
 
                 # in the end, 256x256 flow was obtained needs to downsample
                 # pred_flow = self.downsample_flow(pred_flow)
+                # in the end, 64x64 flow was obtained needs to downsample to 4*4 (ground truth for experimental data)
+                pred_flow = self.downsample_flow(pred_flow) # to 32
+                pred_flow = self.downsample_flow(pred_flow) # to 16
+                pred_flow = self.downsample_flow(pred_flow) # to 8
+                pred_flow = self.downsample_flow(pred_flow) # to 4
 
                 return pred_flow
 
